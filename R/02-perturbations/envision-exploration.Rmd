@@ -1,0 +1,161 @@
+---
+title: "EnVision cell viability data from perturbation experiment"
+author: "Evert Bosdriesz"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: false
+    theme: flatly
+    highlight: kate
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print = "80")
+opts_chunk$set(
+  echo = TRUE, cache = FALSE, prompt = FALSE, tidy = FALSE, comment = NA,
+  message = FALSE, warning = FALSE
+)
+opts_knit$set(width = 80)
+```
+
+```{r load_libraries, echo=FALSE}
+library(tidyverse)
+library(here)
+
+source(here("R/graphics-settings.R"))
+```
+
+```{r read the data}
+wt <- read_tsv(here("results", "perturbations", "wt-envision.tsv"))
+pi3k <- read_tsv(here("results", "perturbations", "pi3k-envision.tsv"))
+
+viabilities <- bind_rows(mutate(wt, Cell = "WT"), mutate(pi3k, Cell = "PI3K"))
+```
+
+Viability on DMSO differs slighly between the two cell lines, so we've normalized per cell lines.
+
+```{r plot DMSO and POA}
+ggplot( 
+  filter(viabilities, Treatment %in%  c("DMSO", "PAO 10uM")), 
+  aes(x = Treatment, y = Viability, color = Cell)) + 
+  geom_boxplot() +
+  ggthemes::scale_color_tableau(
+    labels = list("WT" = "Parental", "PI3K" = expression("PI3K"^{H1047R}))
+    ) +
+  expand_limits(y = 0) + 
+  theme_minimal() +
+  labs(title = "Positive and negative control", x = "", y = "Viability (3-day assay)") +
+  scale_color_manual(name = "", values = color_lst, labels = label_lst) +
+  theme_minimal(base_family = "Helvetica") 
+
+```
+
+The viabilities of all treatments as boxplot.
+
+```{r plot viabilities all treatments, fig.height=4, message=FALSE}
+cols_ordered <- c(
+  #MAPK
+  "FGFRi 0.1uM", "IGF1Ri 3uM", "IGF1Ri 10uM",
+  "EGFRi 0.3uM","EGFRi 1uM",
+  "RAFi 1uM",
+  "MEKi 0.002uM", "MEKi 0.02uM",
+  "ERKi 0.02uM", "ERKi 0.4uM",
+  "GSK3i 2uM","GSK3i 5uM",
+  #AKT
+  "PI3Ki 1uM", "PI3Ki 2uM",
+  "AKTi 1uM", "AKTi 5uM",
+  "mTORi 0.01uM", "mTORi 0.3uM",
+
+  #Combo
+  # MAPK-MAPK
+  "EGFRi 0.3uM + IGF1Ri 3uM",
+  "EGFRi 0.3uM + MEKi 0.002uM",
+  "EGFRi 0.3uM + ERKi 0.02uM",
+  "MEKi 0.002uM + ERKi 0.02uM",
+  # AKT-AKT
+  "IGF1Ri 3uM + AKTi 1uM",
+  "IGF1Ri 3uM + mTORi 0.01 uM",
+  "PI3Ki 1uM + mTORi 0.01uM",
+  "AKTi 1uM + mTORi 0.01uM",
+  # MAPK-AKT
+  "EGFRi 0.3uM + PI3Ki 1uM",
+  "EGFRi 0.3uM + AKTi 1uM",
+  "EGFRi 0.3uM + mTORi 0.01uM",
+  "MEKi 0.002uM + PI3Ki 1uM",
+  "ERKi 0.02uM + PI3Ki 1uM",
+  "ERKi 0.02uM + AKTi 1uM"
+)
+
+
+plt <- ggplot(
+  mutate(
+    filter(viabilities, Treatment %in% c("DMSO", cols_ordered)), 
+           Treatment = factor(Treatment, levels = c("DMSO", cols_ordered))
+           ),
+  aes(x = Treatment, y = NormalizedViability, color = Cell)
+  ) + 
+  geom_boxplot(outlier.size = 0.5) +
+  scale_color_manual(name = "", values = color_lst, labels = label_lst) +
+  expand_limits(y = 0) + 
+  scale_y_continuous(expand = c(0., 0.), limits = c(0, 1.3)) +
+  cowplot::theme_cowplot(font_family = "Helvetica", font_size = 6) +
+  cowplot::background_grid("x") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "Treatment", y = "Viability (3-day assay)")
+plt
+cowplot::save_plot(
+  here("figures", "Envision", "viability-perturbations.pdf"), plt,
+  base_width = 100*0.0393700787, # Convert to inch 
+  base_height = (1/1.618)*100*0.0393700787 # Aspect ratio = golden ratio
+  )
+```
+
+The viabilities of all treatments as boxplot.
+
+```{r barcharts all, message=FALSE}
+ggplot(
+viabilities %>% 
+  group_by(Treatment, Cell) %>% 
+  summarise(
+    sd = sd(NormalizedViability),
+    NormalizedViability = mean(NormalizedViability)
+    ) %>% 
+  ungroup() %>% 
+  filter(Treatment %in% c("DMSO", cols_ordered)) %>% 
+  mutate(Treatment = factor(Treatment, levels = c("DMSO", cols_ordered))),
+aes(x = Treatment, y = NormalizedViability, fill = Cell)) +
+  geom_bar(position = position_dodge(width = 0.75), stat = "identity", width = 0.75) +
+  geom_errorbar(aes(
+    ymin = NormalizedViability - sd,
+    ymax = NormalizedViability + sd,
+    group = Cell),
+    position = position_dodge(width = 0.75),
+    width = 0.5) +
+  scale_fill_manual(name = "", breaks = c("WT", "PI3K"), values = color_lst, labels = label_lst) +
+  scale_y_continuous(expand = c(0., 0.), limits = c(0, 1.3)) +
+  cowplot::theme_cowplot(font_family = "Helvetica", font_size = 6) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    legend.position = "right"
+    ) +
+  labs(x = "", y = "Viability (3-day assay)") 
+ggsave(here("figures", "Envision", "viability-perturbations-barchart.pdf"), width = 5, height = 2.5)
+
+
+```
+
+
+# Session Info
+
+```{r sessionInfo}
+sessionInfo()
+```

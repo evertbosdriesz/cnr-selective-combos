@@ -1,0 +1,396 @@
+---
+title: "Analysis of the validation experiments"
+output: 
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: false
+    theme: flatly
+    highlight: kate
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+Here, I analyze the data of validation experiments that we performed to test 3-drug, low-dose combinations that were predicted to be selective for the MCF10A wildtype cells as compared to the PI3K mutants. This experiment was performed twice, first on 15-11-2018 and than again on 03-12-2018 because the first time the cell-count was on the low side. Here, we only analyse the data from 03-12-208, although the other set gives similar results.
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+```
+
+```{r load_libraries, echo=FALSE}
+library(tidyverse)
+library(here)
+library(broom)
+library(rmarkdown)
+library(patchwork)
+
+source(here("R/graphics-settings.R"))
+```
+
+```{r load data, message=FALSE}
+df <- read_tsv(here("results", "validation", "20181203-envision.tsv"))
+```
+
+The experiment was performed in 8 replicate plates and contained:
+
+-   Low dose 3-drug combinations predicted to be selective (N=`r length(unique(filter(df, type == "Selective")$combo))` combos).
+-   Low dose 3-drug combinations predicted to be non-selective (N=`r length(unique(filter(df, type == "NonSelective")$combo))` combos).
+-   Single drug controls (low dose, at their IC10)
+-   DMSO and PAO as negative and positive control, respectively (N=8 and N=10 per cell line per plate).
+
+The data have been normalized using the script [20181203-wrangle-envision.R](https://github.com/evertbosdriesz/mcf10a-pi3k/src/master/R/validation/20181203-wrangle-envision.R).
+
+We normalized on a per-plate, per-cell line basis as the parental cell line has an overall somewhat slower proliferation rate. Overall, the replicates look reasonably tight.
+
+```{r plot_normalization}
+p1 <- 
+  ggplot(
+  filter(df, combo %in% c("DMSO", "PAO")),
+  aes(x = replicate, y = viability)
+  ) +
+  geom_boxplot(aes(color = cell_line)) +
+  scale_color_manual(
+    name = "",
+    values = color_lst,
+    labels = label_lst
+  ) +
+  labs(
+    title = "Non-normalized controls",
+    x = "Replicate plate",
+    y = "Viability [AU]"
+  ) +
+  facet_wrap(~combo) +
+  theme_light(base_family = "Helvetica") +
+  theme(legend.position = "bottom") 
+
+p2 <- ggplot(
+  filter(df, combo %in% c("DMSO", "PAO")),
+  aes(x = replicate, y = normalized_viability)
+  ) +
+  geom_boxplot(aes(color = cell_line)) +
+  scale_color_manual(
+    name = "",
+    values = color_lst,
+    labels = label_lst
+  ) +
+  labs(
+    title = "Normalized controls",
+    x = "Replicate plate",
+    y = "Viability [AU]"
+  ) +
+  facet_wrap(~combo) +
+  theme_light(base_family = "Helvetica") +
+  theme(legend.position = "bottom")
+
+p1 + p2
+```
+
+The most important test of these validation experiments is if our method can prioritize selective combinations. The box-plot below shows that **combinations that are predicted to be selective are indeed more selective than the control, non-selective combinations** and thus validates model predictions.
+
+```{r selective vs nonselective all, message=FALSE}
+df_sel <- df %>%
+  filter(type %in% c("Selective", "NonSelective")) %>%
+  select(replicate, cell_line, combo, type, normalized_viability, treatment) %>%
+  spread(cell_line, normalized_viability) %>%
+  mutate(selectivity = PI3K - WT) #%>% 
+  # group_by(combo, treatment, type) %>%
+  # summarise(selectivity = mean(selectivity))
+
+plt_validation <- 
+  ggplot(df_sel, aes(x = type, y = selectivity, color = type)) +
+  geom_boxplot(outlier.colour = NA) +
+  labs(
+    x = "",
+    y = "Measured selectivity"
+  ) +
+  scale_color_manual(values = c("gray", "red")) +
+  scale_x_discrete(labels = c("Control", "Predicted\nSelective")) +
+  cowplot::theme_cowplot(font_family = "Helvetica", font_size = 6) +
+  theme(legend.position = "none")
+  
+plt_validation  + 
+  geom_jitter(width=0.25, size=0.5) +
+  #ggbeeswarm::geom_beeswarm() +
+  cowplot::theme_cowplot(font_family = "Helvetica", font_size = 14) +
+  theme(aspect.ratio = 1, legend.position = "none") +
+  ggpubr::stat_compare_means(method = "wilcox.test", label.x = 1.25)  
+  
+
+```
+
+We can also perform a t-test for each individual combination to asses if it is selective.
+
+```{r}
+ttest_combo <- 
+  df %>%
+  filter(type == "Selective") %>%
+  select(treatment, cell_line, normalized_viability) %>%
+  group_by(treatment) %>% 
+  mutate(is_partental = cell_line == "WT") %>% 
+  do(tidy(t.test(.$normalized_viability ~ .$cell_line, alternative = "greater"))) %>% 
+  arrange(p.value)
+
+ttest_combo %>% 
+  paged_table()
+
+write_tsv(ttest_combo, here("results", "validation", "ttest-combos.tsv"))
+
+```
+How many of these are significant? ```r filter(ttest_combo, p.value < 0.05) %>% nrow()```
+
+```{r message=FALSE}
+predictions_control <-
+  read_tsv(here("results", "perturbations", "optimization",
+                "optimization-selection-control.tsv")) %>%
+  select(treatment = AppliedConcentrations,
+         WT_predicted = WT,
+         PI3K_predicted = PI3K,
+         selectivity_predicted = Selectivity) %>%
+  mutate(type = "NonSelective")
+
+predictions_selective <-
+  read_tsv(here("results", "perturbations", "optimization",
+                "optimization-selection-wtselective.tsv")) %>%
+  select(treatment = AppliedConcentrations,
+         WT_predicted = WT,
+         PI3K_predicted = PI3K,
+         selectivity_predicted = Selectivity) %>%
+  mutate(type = "Selective")
+
+predictions <- bind_rows(predictions_control, predictions_selective)
+
+```
+
+```{r}
+df %>% 
+  filter(type %in% c("Selective", "NonSelective")) %>% 
+  group_by(cell_line, treatment) %>% 
+  summarise(normalized_viability = mean(normalized_viability)) %>% 
+  left_join(
+    predictions %>%
+      select(-selectivity_predicted, -type) %>% 
+      pivot_longer(-treatment, names_to = "cell_line", values_to = "predicted_viability") %>% 
+      mutate(cell_line = str_replace(cell_line, "_predicted", "")), 
+    by = c("cell_line", "treatment")) %>% 
+  ggplot(aes(x = predicted_viability, y = normalized_viability, color = cell_line)) +
+  geom_point()
+```
+
+
+A scatter plot of the predicted vs measured selectivity shows a good correlation as well.
+
+```{r scatter selectivity}
+ggplot(
+  left_join(df_sel, predictions, by = c("treatment", "type")),
+  aes(x = selectivity, y = selectivity_predicted)) +
+  geom_abline(slope = 1, color = "lightgray") +
+  geom_point(aes(color = type, shape = str_detect(combo, "IGF1Ri"))) +
+  ggpubr::stat_cor(method = "spearman") +
+  scale_color_manual(
+    name = "Prediction:",
+    values = c("gray", "red")
+  ) +
+  scale_shape_discrete(name = "IGF1R in combo?") +
+  labs(
+    title = "Selectivity",
+    x = "Measured",
+    y = "Predicted",
+    caption = "R = Spearman correlation"
+  ) +
+  theme_light(base_family = "Helvetica")
+```
+
+However, this plot also indicates that the result is mainly driven by drug-combinations containing IGF1R. (This was not unexpected given the predictions.) Since IGF1Ri is also selective as a single treatment (cf. pilot data), this raises the question what the added value of the combining it with other drugs is. In other words, are the IGF1Ri + 2-other drugs combinations more selective than IFG1Ri alone?
+
+Let's first test this over all IGF1Ri containing combinations (and all replicates).
+
+```{r df_igf1r}
+df_igf1r <- df %>%
+ filter(
+  (n_drugs == 3 & str_detect(combo, "IGF1Ri") & type == "Selective") |
+    (n_drugs == 1 & str_detect(combo, "IGF1Ri") & IGF1Ri > 1) # Only use the higher control concentration
+  ) %>%
+  select(type, replicate, cell_line, combo, type, normalized_viability, treatment) %>%
+  spread(cell_line, normalized_viability) %>%
+  mutate(selectivity = PI3K - WT)
+
+group_by(df_igf1r, treatment, type) %>% 
+  summarise(selectivity = mean(selectivity))
+```
+
+```{r boxplot_df_igf1r}
+plt_igf1ri_treatments <- 
+  ggplot(df_igf1r, aes(x = fct_relevel(type, "SingleDrugControl"), y = selectivity, color = type)) +
+  geom_boxplot(outlier.colour = NA) +
+  scale_color_manual(values = c("red", "gray")) +
+  labs(
+    #title = "All IGF1Ri-containing treatments",
+    x = "",
+    y = "Measured selectivity"
+  ) +
+  scale_x_discrete(
+    labels = c("SingleDrugControl" = "IGF1Ri\nonly",  "Selective" = "IGF1Ri +\n2 other drugs"),
+    ) 
+  
+plt_igf1ri_treatments +
+  geom_jitter(width = 0.25) +
+  ggpubr::stat_compare_means(method = "wilcox.test", label.x = 1.5, size = 2) +
+  cowplot::theme_cowplot(font_family = "Helvetica", font_size = 14) +
+  theme(legend.position = "None") 
+```
+
+```{r}
+igf1r_mono_selectivity <- 
+  df_igf1r %>% 
+  filter(treatment == "IGF1Ri") %>% 
+  pull(selectivity) %>% 
+  mean()
+
+
+df_igf1r %>% 
+  group_by(type, treatment) %>% 
+  summarise(WT = mean(WT), PI3K = mean(PI3K)) %>% 
+  mutate(selectivity = PI3K - WT) %>% 
+  filter(type == "Selective") %>% 
+  ggplot(aes(x = fct_relevel(type, "SingleDrugControl"), y = selectivity)) + 
+  expand_limits(y=0) +
+  geom_boxplot(color="red") +
+  geom_jitter(color="red") +
+  scale_color_manual(values = c("red", "gray")) +
+  labs(
+    #title = "All IGF1Ri-containing treatments",
+    x = "",
+    y = "Measured selectivity"
+  ) +
+  scale_x_discrete(
+    labels = c("SingleDrugControl" = "IGF1Ri\nonly",  "Selective" = "IGF1Ri +\n2 other drugs"),
+    ) +
+  cowplot::theme_cowplot(font_family = "Helvetica", font_size = 8) 
+
+
+t.test(
+  filter(tmp, type == "Selective")$selectivity,
+  mu = filter(tmp, type == "SingleDrugControl")$selectivity,
+  alternative = "greater"
+  )
+t.test(selectivity ~ type, data = tmp)
+
+
+```
+
+The boxplot above clearly indicates that **IGF1Ri in combination with selected other drugs is more selective than IGF1Ri alone.**
+
+However, in this case it makes more sense to look at a per-combinations basis. (Now, we use a one-sided t-test instead of wilcoxon because we're not combining different combinations, only comparing replicates.)
+
+```{r ttest_combos}
+ttest_igf1r_combos <- df_igf1r %>% 
+  filter(type != "SingleDrugControl") %>% 
+  left_join(
+    select(
+      filter(df_igf1r, type == "SingleDrugControl"),
+      replicate, control_selectivity = selectivity
+      ),
+    by = "replicate"
+  ) %>% 
+  group_by(combo) %>%
+  do(tidy(t.test(.$selectivity, .$control_selectivity, alternative  = "greater"))) %>% 
+  ungroup() %>% 
+  arrange(p.value) %>% 
+  mutate(rank = dense_rank(desc(estimate)))
+
+ttest_igf1r_combos %>% 
+  select(combo, estimate, p.value) %>% 
+  paged_table()
+
+write_tsv(ttest_igf1r_combos, here("results", "validation", "ttest-igf1ri-mono-vs-combo.tsv"))
+```
+
+**`r nrow(filter(ttest_igf1r_combos, p.value < 0.05))` out of `r nrow(ttest_igf1r_combos)` IGF1Ri-containing combinations individually show a statistically significant greater selectivity than IGF1Ri treatment alone** at a comparable concentration.
+
+For completeness, we also check that other low-dose monotherapies do not induce any selectivity.
+
+```{r plot all single drug comtrols}
+df %>% 
+  filter(type == "SingleDrugControl") %>% 
+  ggplot(aes(x = combo, y = normalized_viability, color = cell_line)) +
+  geom_boxplot() +
+  scale_color_manual(
+    name = "", breaks = c("WT", "PI3K"),
+    values = color_lst,
+    labels = label_lst
+  ) +
+  labs(
+    title = "Single drug controls",
+    y = "Viability (Relative to DMSO)",
+    x = ""
+  ) +
+  cowplot::theme_cowplot(font_family = "Helvetica", font_size = 6) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggpubr::stat_compare_means(
+    method = "wilcox.test", label.x = 1.5, label.y = 1.1, 
+    size = 3, label = 'p.signif') 
+```
+
+```{r}
+df %>% 
+  group_by(cell_line, combo) %>% 
+  summarise(mean(normalized_viability))
+```
+
+
+Finally, let's visualize the most selective combinations.
+
+```{r plot_top_combos, message=FALSE}
+combos_to_plot <- 
+  ttest_igf1r_combos %>% 
+  arrange(desc(conf.low)) %>% 
+  #head(n = 8) %>% 
+  pull(combo)
+
+background_col <- "gray90"
+
+plt_top_combos <- 
+  df_igf1r %>% 
+  filter(combo %in% c("IGF1Ri", combos_to_plot)) %>% 
+  left_join(ttest_igf1r_combos, by = "combo") %>% 
+  select(replicate, combo, PI3K, WT, rank) %>% 
+  gather(cell_line, viability, WT, PI3K) %>% 
+  ggplot(
+  aes(x = combo, y = viability, color = cell_line)
+  ) +
+  geom_rect(xmin=0.5, xmax=1.5, ymin=-Inf, ymax=+Inf, fill = "gray", color = "gray") +
+  geom_rect(xmin=2.5, xmax=3.5, ymin=-Inf, ymax=+Inf, fill = background_col, color = background_col) +
+  geom_rect(xmin=4.5, xmax=5.5, ymin=-Inf, ymax=+Inf, fill = background_col, color = background_col) +
+  geom_rect(xmin=6.5, xmax=7.5, ymin=-Inf, ymax=+Inf, fill = background_col, color = background_col) +
+  geom_rect(xmin=8.5, xmax=9.5, ymin=-Inf, ymax=+Inf, fill = background_col, color = background_col) +
+  geom_rect(xmin=10.5, xmax=11.5, ymin=-Inf, ymax=+Inf, fill = background_col, color = background_col) +
+  geom_rect(xmin=12.5, xmax=13.5, ymin=-Inf, ymax=+Inf, fill = background_col, color = background_col) +
+  geom_rect(xmin=14.5, xmax=15.5, ymin=-Inf, ymax=+Inf, fill = background_col, color = background_col) +
+  geom_rect(xmin=16.5, xmax=17.5, ymin=-Inf, ymax=+Inf, fill = background_col, color = background_col) +
+  geom_boxplot(outlier.size = 0.5) +
+  scale_x_discrete(limits = c("IGF1Ri", combos_to_plot)) +
+  scale_color_manual(
+    name = "", breaks = c("WT", "PI3K"),
+    values = color_lst,
+    labels = label_lst
+  ) +
+  labs(
+    #title = "Selective combinations",
+    y = "Viability (Relative to DMSO)",
+    x = ""
+  ) +
+  cowplot::theme_cowplot(font_family = "Helvetica") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+plt_top_combos
+```
+
+# Session info
+
+```{r session_info}
+sessioninfo::session_info()
+```
+
+

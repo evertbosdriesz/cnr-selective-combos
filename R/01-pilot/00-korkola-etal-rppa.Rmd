@@ -1,0 +1,122 @@
+---
+title: "Analysis of Korkola et al. RPPA data"
+author: "Evert Bosdriesz"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    df_print: paged
+    # theme: simplex
+    # highlight: kate
+    toc: true
+---
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+rm(list = ls())
+library(knitr)
+library(rmdformats)
+
+
+## Global options
+options(max.print = "80")
+opts_chunk$set(
+  echo = TRUE,
+  cache = FALSE,
+  prompt = FALSE,
+  tidy = FALSE,
+  comment = NA,
+  message = FALSE,
+  warning = FALSE
+)
+opts_knit$set(width = 80)
+```
+
+```{r load_libraries, echo=FALSE}
+library(tidyverse)
+library(here)
+
+source(here("R/graphics-settings.R"))
+```
+
+# Summary/Background
+
+## Aim
+
+Here we analyze RPPA data from Korkola et al., PLOS ONE, 2015.
+The main aim is to see how strong the signal of targeted inhibition is in cells that are not starved and restimulated.
+This should inform the decision for the MCF10A WT/PI3Kmut perturbation experiments we plan to do.
+
+## Experimental setup
+
+ * Panel of 22 cell lines were treated with AKTi, Lapatinib, or the combination.
+ * Samples were harvested 0.5, 1, 2, 4, 8, 24, 48 and 72 hours after drug treatment for **RPPA** analysis.
+ * Cells were **not** straved prior to drug treatment.
+ 
+# Data analysis
+
+## Data import
+
+Get and clean the data.
+
+```{r load d}
+df <- readxl::read_xlsx(here("data/Korkola-etal-rppa/journal.pone.0133219.s001.XLSX"), skip = 7)
+
+df <- df %>% 
+  separate(`Sample Name`, into = c("cell_line", "treatment", "time"), sep = "\\)|_") %>% 
+  mutate(
+    cell_line = str_replace_all(cell_line, "\\s|\\([0-9]*", ""),
+    time = as.numeric(str_trim(str_replace(str_replace(time, "hr", ""), "1/2", "0.5"))),
+    treatment = factor(treatment, levels = c("DMSO", "Lapatinib", "AKTi", "Lap+AKTi"))
+    )
+
+head(df)
+```
+
+We restrict analysis to epitopes that are part of the Prot-at-once assay we will use.
+
+```{r df_pao}
+df_pao <- df %>% 
+  select(cell_line, treatment, time, matches("AKT_pS473|MEK1_2_pS217|GSK3a_b_pS21|p70S6K_pT389|S6_pS235")) %>% 
+  gather(epitope, expression, -cell_line, -treatment, -time)
+```
+
+First, let's look at the response after 1 hour.
+
+```{r plot 1hr}
+ggplot(filter(df_pao, time == "2"), aes(x = cell_line, y = expression, fill = treatment, color = treatment)) + 
+  geom_point() +
+  labs(x = "Time (hrs)", y = "Normalized, log2-transformed centered expression",
+       title = "1 hour after drug treatmen") +
+  facet_wrap(~epitope) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Of note: 
+
+  * AKT pS473 shows clear effect of feedback activation upon AKT inhibition in most/all cell lines.
+
+For completeness, also the full time course data.
+
+```{r plot timecourse, fig.height=20, fig.width=10}
+ggplot(df_pao, aes(x = time, y = expression, color = treatment)) + 
+  geom_line() +
+  geom_point() +
+  scale_x_log10() +
+  labs(x = "Time (hrs)", y = "Normalized, log2-transformed centered expression",
+       title = "RPPA time course of selected epitopes") +
+  facet_grid(cell_line~epitope) +
+  my_theme
+```
+
+Of note:
+
+  * For selection of the timepoint: AKT shows little dynamics after 1 hour.
+  * pS6 continues to decrease after 1 hour, but in most cell lines where it decreases, clear onset present after 1 hour.
+  * Most other epitopes remain flat. This is not very surprising since e.g. the MAPK pathway is not perturbed. 
+  However, when using a restimulation experiment, we might see more dynamics.
+
+
+# Session Info
+
+```{r sessionInfo}
+sessionInfo()
+```

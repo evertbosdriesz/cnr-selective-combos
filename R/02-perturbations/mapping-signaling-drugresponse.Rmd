@@ -1,0 +1,363 @@
+---
+title: "The mapping from signaling and drug response"
+description: "Parametrizing the relation between short term signaling response and long term cell viability"
+output: 
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: false
+    theme: flatly
+    highlight: kate
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+# Introduction
+
+In our experiments, viabilities are measured in a 3-day CellTiter-Blue assay, while signaling responses are measured in the Luminex 2 hours after drug perturbation. Here, we test to what extend differences in viability can be predicted from the measured signaling response, and parametrize this relation.
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+```
+
+```{r load_libraries, echo=FALSE}
+library(tidyverse)
+library(here)
+library(broom)
+library(rmarkdown)
+
+source(here("R/graphics-settings.R"))
+```
+
+# Data preparation
+
+The signaling model fits/predicts log2-fold changes in nodes in response to perturbations, so we'll only consider those.
+
+```{r read data, message=FALSE}
+wt_lum_lfc <- read_tsv(here("results", "perturbations", "wt-luminex-lfc.tsv"))
+pi3k_lum_lfc <- read_tsv(here("results", "perturbations", "pi3k-luminex-lfc.tsv"))
+
+wt_lum_abs <- read_tsv(here("results", "perturbations", "wt-luminex.tsv"))
+pi3k_lum_abs <- read_tsv(here("results", "perturbations", "pi3k-luminex.tsv"))
+
+wt_env <- read_tsv(here("results", "perturbations", "wt-envision.tsv"))
+pi3k_env <- read_tsv(here("results", "perturbations", "pi3k-envision.tsv"))
+```
+
+First, we prepare the data-frame dat\_lfc, containing the log2 fold-changes of each epitope together with the Viabilities. The FGFRi treatments are discarded in the network reconstruction, so we'll also not include it here.
+
+```{r dat_lfc}
+wt <- left_join(
+  wt_env %>% 
+    group_by(Treatment) %>% 
+    summarise(Viability = mean(NormalizedViability)),
+  wt_lum_lfc %>%
+    gather(Treatment, val, -Epitope) %>% 
+    spread(Epitope, val),
+  by = "Treatment"
+)
+
+pi3k <- left_join(
+  pi3k_env %>%
+    group_by(Treatment) %>%
+    summarise(Viability = mean(NormalizedViability)),
+  pi3k_lum_lfc %>%
+    gather(Treatment, val, -Epitope) %>%
+    spread(Epitope, val),
+  by = "Treatment"
+)
+
+dat_lfc <- bind_rows(list("WT" = wt, "PI3K" = pi3k), .id = "Cell") %>%
+  filter(!is.na(Akt1)) %>%
+  filter(!str_detect(Treatment, 'FGFRi')) %>% # Remove treatments not used in signaling model
+  mutate(Cell = factor(Cell, levels = c("WT", "PI3K")))
+rm(wt, pi3k)
+
+
+paged_table(head(dat_lfc))
+```
+
+
+# Correlations between log2 fold change and viability
+
+A first simple approach is to look at the correlations between Epitopes and Inhibition.
+
+We see a pretty nice negative correlation between the log2-fold change in pAKT and pERK, and drug efficacy. However, none of the nodes is very predictive for viabilty by itself.
+
+```{r figure epitopes-viability-measured-scatter, fig.height=6, message=FALSE}
+ggplot(
+  filter(
+    gather(dat_lfc, Epitope, LFC, -Cell, -Treatment, -Viability),
+    Epitope != "Akt1"
+  ),
+  aes(x = LFC, y = Viability, color = Cell)) +
+  geom_vline(xintercept = 0, color = "gray", linetype="dotted") +
+  geom_hline(yintercept = 1, color = "gray", linetype="dotted") +
+  expand_limits(y = c(0, 1)) +
+  geom_point() +
+  scale_color_manual(
+    name = "",
+    breaks = c("WT", "PI3K"),
+    values = color_lst,
+    labels = label_lst
+  ) +
+  labs(
+    title = "Correlation between signaling responses and viability",
+    x = bquote("Log"[2]~"fold-change in epitope"), y = "Viability (Relative to DMSO)"
+  ) +
+  facet_wrap(~Epitope, scales = "free", labeller = as_labeller(epitope_labels)) +
+  cowplot::theme_cowplot(font_family = "Helvetica") +
+  theme(legend.position = "bottom")
+```
+
+```{r figure delpAKT-viability, message=FALSE, eval=FALSE}
+plt <- ggplot(
+  filter(
+    gather(dat_lfc, Epitope, LFC, -Cell, -Treatment, -Viability),
+    Epitope %in% c("BioAkt", "ERK1")
+  ),
+  aes(x = LFC, y = Viability, color = Cell)) +
+  geom_vline(xintercept = 0, color = "gray", linetype="dotted") +
+  geom_hline(yintercept = 1, color = "gray", linetype="dotted") +
+  expand_limits(y = c(0, 1)) +
+  geom_point() +
+  labs(
+    #title = "Correlation between signaling responses and viability",
+    x = bquote("Log"[2]~"fold-change in epitope"), y = "Viability (Relative to DMSO)"
+  ) +
+  facet_wrap(~Epitope, scales = "free", labeller = as_labeller(epitope_labels)) +
+  scale_color_manual(name = "", values = color_lst, labels = label_lst) +
+  cowplot::theme_cowplot(font_family = "Helvetica", font_size = 6) +
+  theme(legend.position = "bottom")
+
+plt + labs(title = "Correlation between signaling responses and viability")
+
+```
+
+ERK1 and AKT have the strongest correlation with Inhibition.
+
+```{r correlation lfc}
+dat_lfc %>%
+  summarise_if(is.double, funs(cor(., dat_lfc[, "Viability"]))) %>%
+  gather(Epitope, Correlation) %>%
+  filter(Epitope != "Viability") %>%
+  arrange(desc(Correlation)) %>%
+  paged_table()
+```
+# Michaelis-Menten-like transfer functions
+
+We saw that ∆pAKT1 and ∆pERK1 both had a reasonable correlation with viability, clearly not perfect.
+We therefor try a model that incorportates both:
+ 
+$$\mathrm{viability} \sim \frac{1}{1 - \Delta ERK1/KM_{ERK1} - \Delta AKT/KM_{AKT}}$$
+
+```{r fit nonlinear on full data, message=FALSE}
+subtitle_mm <- expression(
+  "Viability ~ " * frac("1","[1 + -"*Delta*"AKT/KM"[AKT] * " + -"
+  * Delta*"ERK1/KM"[ERK] * "]"))
+
+formula_mm  <- Viability ~ (1/(1 + -ERK1 / KM_ERK1 + -BioAkt / KM_BioAkt))
+
+fit_mm_wt  <- nls(
+  formula_mm, filter(dat_lfc, Cell == "WT"), 
+  start = list("KM_ERK1" = 0.5, "KM_BioAkt" = 2.5)
+  )
+
+fit_mm_pi3k  <- nls(
+  formula_mm, filter(dat_lfc, Cell == "PI3K"), 
+  start = list("KM_ERK1" = 0.5, "KM_BioAkt" = 2.5)
+  )
+
+prediction_wt <- broom::augment(fit_mm_wt, filter(dat_lfc, Cell == "WT")) %>% 
+  rename(PredictedViability = .fitted)
+
+prediction_pi3k <- broom::augment(fit_mm_pi3k, filter(dat_lfc, Cell == "PI3K")) %>% 
+  rename(PredictedViability = .fitted)
+
+
+prediction_combined <- bind_rows(prediction_wt, prediction_pi3k)
+
+
+ggplot(prediction_combined,
+  aes(x = Viability, y = PredictedViability)) +
+  geom_abline(slope = 1, color = "lightgray") +
+  geom_point(aes(color = Cell)) +
+  labs(
+    title = "Correlation between measured and\nfitted viabilty",
+    subtitle = subtitle_mm,
+    x = "Measured viability", y = "Viability fitted from pERK and pAKT"
+  ) +
+  #expand_limits(x = 0, y = 0) + 
+  ggpubr::stat_cor(method = "pearson") +
+  scale_color_manual(name = "", values = color_lst, labels = label_lst) +
+  cowplot::theme_cowplot(font_family = "Helvetica") +
+  theme(legend.position = "bottom")
+# 
+# ggsave(here('figures', 'correlations-and-predictions', 'viability-signaling-MM-all.pdf'),
+#        width=2, height=2)
+```
+
+We obtain the following parameters from this.
+
+```{r write parameters to file}
+params <- bind_rows(
+  list("WT" = broom::tidy(fit_mm_wt),
+       "PI3K" = broom::tidy(fit_mm_pi3k)),
+  .id = "Cell"
+    
+)
+
+params
+write_tsv(params,
+          here('results', 'perturbations', 'signaling-viability-parameters.tsv')
+)
+```
+
+# Model assesment using LOO cross-validation
+
+While we have a model that has just to parameters, we nonetheless still check the performance in a leave-one-out cross validation loop.
+
+
+```{r loo_results, warning=FALSE}
+# Function to perform the model fitting
+get_loo_results <- function(splits, formula, starts = NA, grouped = FALSE,
+                            method = "nls", maxiter = 100){
+  # Get the analysis data
+  dat <- rsample::analysis(splits)
+
+  # If a grouped (i.e. per-cell-line) model is used, remove analisys data not
+  # matching the assesment sample.
+  if (grouped) {
+    dat <- filter(dat, Cell == rsample::assessment(splits)$Cell)
+  }
+  # Train the model
+  if (method == "nls") {
+    mod <- nls(formula = formula, data = dat, start = starts,
+               nls.control(maxiter = maxiter))
+  } else if (method == "lm") {
+    mod <- lm(formula = formula, data = dat)
+  }
+
+  # Obtain model parameters and predictions
+  bind_cols(
+    select(broom::augment(mod, newdata = rsample::assessment(splits)),
+           Cell, Treatment, Viability, .fitted),
+    spread(select(broom::tidy(mod), term, estimate), term, estimate)
+  )
+  #  broom::augment(mod, newdata = rsample::assessment(splits))
+}
+
+#-------------------------------------------------------------------------------
+# MM-like models
+
+loo_mm_grouped <- dat_lfc %>%
+  filter(Treatment != "DMSO") %>%
+  rsample::loo_cv() %>%
+  pull(splits) %>%
+  map(get_loo_results,
+      formula = formula_mm,
+      start = list("KM_ERK1" = 0.8, "KM_BioAkt" = 4),
+      grouped = TRUE,
+      maxiter = 1000
+  ) %>%
+  bind_rows() %>%
+  mutate(grouping = "per-cell-line", model = "MM") %>%
+  rename(PredictedViability = .fitted)
+
+summarise(loo_mm_grouped, pearson = cor(Viability, PredictedViability))
+```
+As expected, the performance in a cross-validation loop is comparable (but slighlty worse).
+
+# Parameter uncertainty estimation using bootstrapping
+
+The model fits the data fairly well.
+To perform parameter uncertainty estimation, and asses to what extend the parameters might differ between the cell lines, we perform 1000 bootstraps.
+
+```{r bootstap models}
+boot_wt <- 
+  dat_lfc %>%
+  filter(Cell == "WT") %>%
+  rsample::bootstraps(times = 1000) %>%
+  pull(splits) %>%
+  map(
+    possibly(
+      function(split) {
+        nls(formula = formula_mm,
+            data = rsample::analysis(split),
+            start = list("KM_ERK1" = 0.6, "KM_BioAkt" = 3.9)) %>%
+          broom::tidy() %>%
+          select(term, estimate) %>%
+          spread(term, estimate)
+      },
+      otherwise = tibble(KM_BioAkt = NA, KM_ERK1 = NA)
+    )
+  ) %>%
+  bind_rows(.id = "bootstrap")
+
+boot_pi3k <- 
+  dat_lfc %>%
+  filter(Cell == "PI3K") %>%
+  rsample::bootstraps(times = 1000) %>%
+  pull(splits) %>%
+  map(
+    possibly(
+      function(split) {
+        nls(formula = formula_mm,
+            data = rsample::analysis(split),
+            start = list("KM_ERK1" = 0.6, "KM_BioAkt" = 3.9)) %>%
+          broom::tidy() %>%
+          select(term, estimate) %>%
+          spread(term, estimate)
+      },
+      otherwise = tibble(KM_BioAkt = NA, KM_ERK1 = NA)
+    )
+  ) %>%
+  bind_rows(.id = "bootstrap")
+
+boot_results <- bind_rows(
+  list( "WT" = boot_wt, "PI3K" = boot_pi3k),
+  .id = "model")
+```
+
+The plot below shows the 95% confidence intervals of the parameters overlap between the cell lines. 
+
+```{r plot bootstrapped parameter estimates}
+tmp <- gather(boot_results, term, estimate, KM_BioAkt, KM_ERK1) %>%
+  group_by(model, term) %>%
+  summarise(
+    median = median(estimate, na.rm = TRUE),
+    mean = mean(estimate, na.rm = TRUE),
+    ci_lower = quantile(estimate, probs = 0.025, na.rm = TRUE),
+    ci_upper = quantile(estimate, probs = 0.975, na.rm = TRUE)
+  )
+
+plt <- ggplot(filter(tmp, model != "combined"), aes(x = model, y = mean, color = model)) +
+  geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper), width = .1) +
+  geom_point(size = 3, shape = 21, fill = "white") +
+  facet_wrap(~term, scales = "free", ncol = 4) +
+  coord_flip() +
+  scale_color_manual(name = "", breaks = c("WT", "PI3K"),
+                     values = color_lst,
+                     labels = label_lst
+  ) +
+  cowplot::theme_half_open(font_family = "Helvetica") +
+  theme(legend.position = "bottom", axis.text.y =element_blank()) +
+  labs(y = "Parameter estimate", x = "",
+       title = "Parameter estimates and 95% confidence intervals",
+       subtitle = "Obtained using 1000 bootstraps"
+  )
+plt
+```
+
+# Conclusion
+
+-   The phenotypic response (Viability) can be predicted well from the measured signaling responses. This is surprising as signaling is measured after 2 hours, whereas viability is a 3-day assay.
+-   Changes in ERK1 and AKT1 are most informative.
+
+# Session Info
+
+```{r sessionInfo}
+sessionInfo()
+```

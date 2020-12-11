@@ -1,0 +1,234 @@
+---
+title: "Luminex data exploration"
+author: "Evert Bosdriesz"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: false
+    theme: flatly
+    highlight: kate
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print = "80")
+opts_chunk$set(
+  echo = FALSE, cache = FALSE, prompt = FALSE, tidy = FALSE, comment = NA,
+  message = FALSE, warning = FALSE
+  )
+opts_knit$set(width = 80)
+```
+
+```{r load_libraries, echo=FALSE}
+library(tidyverse)
+library(here)
+```
+
+```{r read data, message=FALSE}
+wt <- read_tsv(here("results", "perturbations", "wt-luminex.tsv"))
+pi3k <- read_tsv(here("results", "perturbations", "pi3k-luminex.tsv"))
+
+source(here("R", "graphics-settings.R"))
+```
+
+
+
+# Correct for protein amount
+
+Should we correct for the total protein amount?
+There were small differences between protein amounts, which we've measured prior to sending the samples.
+We used these measurements to correct for different input amounts.
+
+What is the distribution of these?
+
+```{r prot_conc}
+prot_conc <- readxl::read_xlsx(
+  here("data", "Luminex", "2017-12-08", "171201-perturbation-samples.xlsx"),
+  sheet = "BCA PTPN11", range = "A22:K118") %>% 
+  select("Treatment" = ...2, "Protein_concentration" = ...6, Sample_number) %>% 
+  mutate(
+    Cell_line = str_replace(if_else(Sample_number <= 48, "WT", "Mut"), "Mut", "PI3K"),
+    Sample_number = as.factor(Sample_number)
+    ) %>% 
+  filter(Treatment != "Lysis buffer") %>% 
+  group_by(Cell_line) %>% 
+  mutate(mean_conc = mean(Protein_concentration)) %>% 
+  ungroup() %>% 
+  mutate(correction_factor = Protein_concentration/mean_conc) 
+
+ggplot(prot_conc, aes(x = correction_factor, fill = Cell_line)) + 
+  geom_histogram(bins = 20) +
+  theme_minimal() +
+  scale_fill_manual(
+    name = "",
+    values = color_lst,
+    labels = label_lst,
+    breaks = c("WT", "PI3K")
+  ) +
+  ggtitle("Distribution of protein-concentration correction factors")
+```
+
+There is one "outlier" to left. 
+Which is it?
+
+```{r table correction factors}
+head(arrange(prot_conc, correction_factor))
+```
+
+
+# Plot ERK and AKT
+
+```{r barcharts}
+akt_wt <- ggplot(
+  mutate(wt, Sample_number = as.factor(Sample_number)), 
+  aes(Sample_number, BioAkt)) + 
+  geom_bar(stat = "Identity") +
+  labs(title = expression("MCF10A Parental"), y = expression("p-AKT"^S473)) +
+  ggthemes::theme_hc()
+ggsave(here("figures", "Luminex", "pAKT-wt-bar.pdf"), 
+       akt_wt, width = 10, height = 2.5)
+
+erk_wt <- ggplot(
+  mutate(wt, Sample_number = as.factor(Sample_number)), 
+  aes(Sample_number, ERK1)) + 
+  geom_bar(stat = "Identity") +
+  labs(title = expression("MCF10A Parental"), y = expression("p-ERK"^{T202/Y204})) +
+  ggthemes::theme_hc()
+ggsave(here( "figures", "Luminex", "pERK-wt-bar.pdf"), 
+       erk_wt, width = 10, height = 2.5)
+
+akt_mut <- ggplot(
+  mutate(pi3k, Sample_number = as.factor(Sample_number)), 
+  aes(Sample_number, BioAkt)) + 
+  geom_bar(stat = "Identity") + 
+  labs(title = expression("MCF10A PI3K"^H1074R), y = expression("p-AKT"^S473)) +
+  ggthemes::theme_hc()
+ggsave(here( "figures", "Luminex", "pAKT-mut-bar.pdf"), 
+       akt_mut, width = 10, height = 2.5)
+
+erk_mut <- ggplot(
+  mutate(pi3k, Sample_number = as.factor(Sample_number)),
+  aes(Sample_number, ERK1)) + 
+  geom_bar(stat = "Identity") + 
+  labs(title = expression("MCF10A PI3K"^H1074R), y = expression("p-ERK"^{T202/Y204})) +
+  theme_minimal()
+ggsave(here( "figures", "Luminex", "pERK-mut-bar.pdf"), 
+       erk_mut, width = 10, height = 2.5)
+
+akt_wt
+akt_mut
+erk_wt
+erk_mut
+rm(akt_wt, akt_mut, erk_wt, erk_mut)
+```
+
+# Baseline differences between cell lines
+
+As expected, pAKT and PRAS40 are higher in the PI3K mutant.
+RS6 is also slighly elevated.
+Replicates look fine for most epitopes, but for some reason the variance is somewhat larger in the WT cells.
+
+```{r plot dmso, message=FALSE}
+
+labels = c("EGFR" = "EGFR Y1068",
+          "MEK1" = "MEK1 S217/S221",
+          "ERK1" = "ERK1 T202/Y204",
+          "GSK3" = "GSK3 S21/S9",
+          "CREB1" = "CREB1 S133",
+          "BioAkt" = "AKT1 T473",
+          "PRAS40" = "PRAS40 T246",
+          "P70S6K" = "P70S6K T3890",
+          "RS6" = "RPS6 S235")
+
+
+dmso <- bind_rows(list("WT" = wt,"PI3K" = pi3k), .id = "Cell") %>% 
+  filter(Treatment == "DMSO") %>% 
+  select(-Sample_number, -Treatment) %>% 
+  gather(Epitope, Expression, -Cell) %>% 
+  filter(Epitope != "Akt1") %>% 
+  mutate(Epitope = factor(Epitope, levels = names(labels)))
+
+p <- ggplot(dmso, aes(x = factor(Cell, levels = c("WT", "PI3K")), y = Expression, color = Cell)) +
+  geom_boxplot() +
+  expand_limits(y = 0) + 
+  labs(title = "Epitope intensity in DMSO (4 replicates)", x = "", y = "Intensity (AU)") +
+  scale_color_manual(
+    name = "",
+    values = color_lst,
+    labels = label_lst,
+    breaks = c("WT", "PI3K")
+  ) +
+  scale_x_discrete(labels = list(WT = bquote("Parental"), PI3K = bquote("PI3K"^{H1047R}))) +
+  cowplot::theme_half_open(font_family = "Helvetica") +
+  theme(legend.position = "none") +
+  ggpubr::stat_compare_means(
+    method = 't.test', label = 'p.signif', hide.ns = TRUE,
+    label.x = 1.5, label.y.npc = 0.8, size = 3, family = "Helvetica", face = "bold")
+
+
+p + facet_wrap(~Epitope, scales = "free_y", labeller = as_labeller(labels))
+  
+p_exp <- p + 
+  cowplot::theme_half_open(font_family = "Helvetica", font_size = 6) +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  facet_wrap(~Epitope, scales = "free_y", labeller = as_labeller(labels)) +
+  labs(title = "Baseline signaling activity", x = "", y = "Intensity (AU)") 
+
+ggsave(
+  here("figures", "luminex", "DMSO-controls.pdf"), p_exp,
+  height = 2.5, width = 2.5
+)
+#   
+# rm(dmso)
+
+```
+
+## Correlation in Log2-fold changes
+
+```{r}
+wt_lfc <- read_tsv(here("results", "perturbations", "wt-luminex-lfc.tsv"))
+pi3k_lfc <- read_tsv(here("results", "perturbations", "pi3k-luminex-lfc.tsv"))
+
+
+p <- inner_join(
+  pivot_longer(wt_lfc, -Epitope, names_to = "treatent", values_to = "lfc_wt"),
+  pivot_longer(pi3k_lfc, -Epitope, names_to = "treatent", values_to = "lfc_pi3k")
+  ) %>% 
+  filter(Epitope != "Akt1") %>% 
+  ggplot(aes(x = lfc_wt, y = lfc_pi3k)) +
+  geom_point(size = 0.8) +
+  #coord_equal() +
+  facet_wrap(~Epitope,  scales = "free", labeller = as_labeller(labels)) +
+  labs(title = "Log2 fold change compared to DMSO",
+       x = bquote("Parental"), y  = bquote("PI3K"^{H1047R})) +
+  cowplot::theme_cowplot(font_family = "Helvetica")
+
+p
+
+p_exp <- p + 
+  facet_wrap(~Epitope,  scales = "free", labeller = as_labeller(labels), ncol = 2) +
+  cowplot::theme_half_open(font_family = "Helvetica", font_size = 8)
+
+ggsave(
+  here("figures", "luminex", "correlation-WT-PI3K.pdf"), p_exp,
+  height = 4, width = 3
+)
+
+```
+
+
+# Session Info
+
+```{r sessionInfo}
+sessionInfo()
+```

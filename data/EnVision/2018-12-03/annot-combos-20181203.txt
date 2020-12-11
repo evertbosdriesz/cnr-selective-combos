@@ -1,0 +1,87 @@
+combo	treatment	n_drugs	type
+AKTi+EGFRi+IGF1Ri	AKTi:0.038 + EGFRi:0.0096 + IGF1Ri:1.2	3	Selective
+AKTi+EGFRi+PI3Ki	AKTi:0.038 + EGFRi:0.0038 + PI3Ki:0.14	3	Selective
+AKTi+ERKi+IGF1Ri	AKTi:0.044 + ERKi:0.00060 + IGF1Ri:1.2	3	Selective
+AKTi+ERKi+PI3Ki	AKTi:0.042 + ERKi:0.00023 + PI3Ki:0.14	3	Selective
+AKTi+IGF1Ri	AKTi:0.077 + IGF1Ri:1.2	2	Selective
+AKTi+PI3Ki	AKTi:0.054 + PI3Ki:0.14	2	Selective
+AKTi+IGF1Ri+PI3Ki	AKTi:0.054 + IGF1Ri:1.2 + PI3Ki:0.14	3	Selective
+AKTi+IGF1Ri+mTORi	AKTi:0.065 + IGF1Ri:1.2 + mTORi:0.0035	3	Selective
+AKTi+PI3Ki+mTORi	AKTi:0.043 + PI3Ki:0.14 + mTORi:0.0035	3	Selective
+EGFRi+IGF1Ri	EGFRi:0.022 + IGF1Ri:1.2	2	Selective
+EGFRi+PI3Ki	EGFRi:0.015 + PI3Ki:0.14	2	Selective
+EGFRi+IGF1Ri+PI3Ki	EGFRi:0.015 + IGF1Ri:1.2 + PI3Ki:0.14	3	Selective
+EGFRi+IGF1Ri+mTORi	EGFRi:0.018 + IGF1Ri:1.2 + mTORi:0.0035	3	Selective
+EGFRi+PI3Ki+mTORi	EGFRi:0.011 + PI3Ki:0.14 + mTORi:0.0035	3	Selective
+ERKi+IGF1Ri	ERKi:0.0016 + IGF1Ri:1.2	2	Selective
+ERKi+PI3Ki	ERKi:0.0011 + PI3Ki:0.14	2	Selective
+ERKi+IGF1Ri+PI3Ki	ERKi:0.0011 + IGF1Ri:1.2 + PI3Ki:0.14	3	Selective
+ERKi+IGF1Ri+mTORi	ERKi:0.0013 + IGF1Ri:1.2 + mTORi:0.0035	3	Selective
+ERKi+PI3Ki+mTORi	ERKi:0.00086 + PI3Ki:0.14 + mTORi:0.0035	3	Selective
+GSK3i+IGF1Ri+MEKi	GSK3i:3.0 + IGF1Ri:1.2 + MEKi:0.00034	3	Selective
+GSK3i+IGF1Ri+PI3Ki	GSK3i:3.0 + IGF1Ri:1.2 + PI3Ki:0.14	3	Selective
+GSK3i+IGF1Ri+RAFi	GSK3i:3.0 + IGF1Ri:1.2 + RAFi:0.018	3	Selective
+GSK3i+IGF1Ri+mTORi	GSK3i:3.0 + IGF1Ri:1.2 + mTORi:0.0035	3	Selective
+GSK3i+PI3Ki+mTORi	GSK3i:3.0 + PI3Ki:0.14 + mTORi:0.0035	3	Selective
+IGF1Ri+MEKi+PI3Ki	IGF1Ri:1.2 + MEKi:0.00034 + PI3Ki:0.14	3	Selective
+IGF1Ri+MEKi+RAFi	IGF1Ri:1.2 + MEKi:0.00034 + RAFi:0.018	3	Selective
+IGF1Ri+MEKi+mTORi	IGF1Ri:1.2 + MEKi:0.00034 + mTORi:0.0035	3	Selective
+IGF1Ri+PI3Ki+RAFi	IGF1Ri:1.2 + PI3Ki:0.14 + RAFi:0.018	3	Selective
+IGF1Ri+PI3Ki+mTORi	IGF1Ri:1.2 + PI3Ki:0.14 + mTORi:0.0035	3	Selective
+IGF1Ri+RAFi+mTORi	IGF1Ri:1.2 + RAFi:0.018 + mTORi:0.0035	3	Selective
+PI3Ki+RAFi+mTORi	PI3Ki:0.14 + RAFi:0.018 + mTORi:0.0035	3	Selective
+EGFRi+GSK3i	EGFRi:0.012 + GSK3i:3.0	2	NonSelective
+EGFRi+MEKi	EGFRi:0.0093 + MEKi:0.00034	2	NonSelective
+EGFRi+RAFi	EGFRi:0.014 + RAFi:0.018	2	NonSelective
+EGFRi+mTORi	EGFRi:0.016 + mTORi:0.00037	2	NonSelective
+ERKi+GSK3i	ERKi:0.00093 + GSK3i:3.0	2	NonSelective
+ERKi+MEKi	ERKi:0.00072 + MEKi:0.00034	2	NonSelective
+ERKi+RAFi	ERKi:0.0011 + RAFi:0.018	2	NonSelective
+ERKi+mTORi	ERKi:0.0012 + mTORi:0.00022	2	NonSelective
+AKTi+GSK3i	AKTi:0.045 + GSK3i:3.0	2	NonSelective
+AKTi+GSK3i+MEKi	AKTi:0.021 + GSK3i:3.0 + MEKi:0.00034	3	NonSelective
+AKTi+GSK3i+RAFi	AKTi:0.037 + GSK3i:3.0 + RAFi:0.018	3	NonSelective
+AKTi+GSK3i+mTORi	AKTi:0.044 + GSK3i:3.0 + mTORi:0.00028	3	NonSelective
+AKTi+MEKi	AKTi:0.034 + MEKi:0.00034	2	NonSelective
+AKTi+RAFi	AKTi:0.052 + RAFi:0.018	2	NonSelective
+AKTi+mTORi	AKTi:0.060 + mTORi:0.000061	2	NonSelective
+AKTi+MEKi+RAFi	AKTi:0.027 + MEKi:0.00034 + RAFi:0.018	3	NonSelective
+AKTi+MEKi+mTORi	AKTi:0.033 + MEKi:0.00034 + mTORi:0.00045	3	NonSelective
+AKTi+RAFi+mTORi	AKTi:0.052 + RAFi:0.018 + mTORi:0.00017	3	NonSelective
+EGFRi+GSK3i+MEKi	EGFRi:0.0055 + GSK3i:3.0 + MEKi:0.00034	3	NonSelective
+EGFRi+GSK3i+RAFi	EGFRi:0.010 + GSK3i:3.0 + RAFi:0.018	3	NonSelective
+EGFRi+GSK3i+mTORi	EGFRi:0.012 + GSK3i:3.0 + mTORi:0.00037	3	NonSelective
+EGFRi+MEKi+RAFi	EGFRi:0.0073 + MEKi:0.00034 + RAFi:0.018	3	NonSelective
+EGFRi+MEKi+mTORi	EGFRi:0.0090 + MEKi:0.00034 + mTORi:0.00037	3	NonSelective
+EGFRi+RAFi+mTORi	EGFRi:0.014 + RAFi:0.018 + mTORi:0.00037	3	NonSelective
+ERKi+GSK3i+MEKi	ERKi:0.00044 + GSK3i:3.0 + MEKi:0.00034	3	NonSelective
+ERKi+GSK3i+RAFi	ERKi:0.00078 + GSK3i:3.0 + RAFi:0.018	3	NonSelective
+ERKi+GSK3i+mTORi	ERKi:0.00091 + GSK3i:3.0 + mTORi:0.00024	3	NonSelective
+ERKi+MEKi+RAFi	ERKi:0.00057 + MEKi:0.00034 + RAFi:0.018	3	NonSelective
+ERKi+MEKi+mTORi	ERKi:0.00070 + MEKi:0.00034 + mTORi:0.00026	3	NonSelective
+ERKi+RAFi+mTORi	ERKi:0.0011 + RAFi:0.018 + mTORi:0.00023	3	NonSelective
+GSK3i+IGF1Ri+MEKi	GSK3i:3.0 + IGF1Ri:0.13 + MEKi:0.00034	3	NonSelective
+GSK3i+PI3Ki	GSK3i:3.0 + PI3Ki:0.14	2	NonSelective
+GSK3i+MEKi+PI3Ki	GSK3i:3.0 + MEKi:0.00034 + PI3Ki:0.083	3	NonSelective
+GSK3i+MEKi+RAFi	GSK3i:3.0 + MEKi:0.00034 + RAFi:0.018	3	NonSelective
+GSK3i+MEKi+mTORi	GSK3i:3.0 + MEKi:0.00034 + mTORi:0.0035	3	NonSelective
+GSK3i+PI3Ki+RAFi	GSK3i:3.0 + PI3Ki:0.14 + RAFi:0.018	3	NonSelective
+GSK3i+PI3Ki+mTORi	GSK3i:3.0 + PI3Ki:0.13 + mTORi:0.0035	3	NonSelective
+GSK3i+RAFi+mTORi	GSK3i:3.0 + RAFi:0.018 + mTORi:0.0035	3	NonSelective
+MEKi+PI3Ki	MEKi:0.00034 + PI3Ki:0.14	2	NonSelective
+IGF1Ri+MEKi+RAFi	IGF1Ri:0.18 + MEKi:0.00034 + RAFi:0.018	3	NonSelective
+IGF1Ri+MEKi+mTORi	IGF1Ri:0.13 + MEKi:0.00034 + mTORi:0.0035	3	NonSelective
+MEKi+PI3Ki+RAFi	MEKi:0.00034 + PI3Ki:0.11 + RAFi:0.018	3	NonSelective
+MEKi+PI3Ki+mTORi	MEKi:0.00034 + PI3Ki:0.087 + mTORi:0.0035	3	NonSelective
+MEKi+RAFi+mTORi	MEKi:0.00034 + RAFi:0.018 + mTORi:0.0035	3	NonSelective
+DMSO	DMSO	0	Control
+PAO	PAO	0	Control
+AKTi	AKTi	1	SingleDrugControl
+EGFRi	EGFRi	1	SingleDrugControl
+ERKi	ERKi	1	SingleDrugControl
+GSK3i	GSK3i	1	SingleDrugControl
+IGF1Ri	IGF1Ri	1	SingleDrugControl
+MEKi	MEKi	1	SingleDrugControl
+mTORi	mTORi	1	SingleDrugControl
+PI3Ki	PI3Ki	1	SingleDrugControl
+RAFi  	RAFi  	1	SingleDrugControl

@@ -1,0 +1,374 @@
+---
+title: "IC50 estimations from pilot EnVision data"
+date: "`r Sys.Date()`"
+author: "Evert Bosdriesz"
+output: 
+  html_document:
+    df_print: paged
+    toc: true
+---
+
+```{r knitr_init, echo=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print = "80")
+opts_chunk$set(
+  echo = TRUE,
+  cache = FALSE,
+  prompt = FALSE,
+  tidy = FALSE,
+  comment = NA,
+  message = FALSE,
+  warning = FALSE
+)
+opts_knit$set(width = 80)
+```
+
+```{r load libaries, echo=FALSE, message=FALSE}
+library(tidyverse)
+library(readr)
+library(stringr)
+library(forcats)
+library(readxl)
+library(here)
+library(djvMixedIC50)
+
+source(here("R/graphics-settings.R"))
+```
+
+# Background
+
+Data analyzed in this notebook is from a pilot experiment performed between 11-09 and 15-09-2017.
+
+MCF10A WT and PI3K KI mutant strain where screened against a number of MAPK and AKT-pathway targeting drugs. The main purpose was to Establish IC50-values in a 4-day viability assay.
+
+# Data preparation
+
+-   Each biological replicate spanned two plates, (because not all drugs fit on the same plate). Each drug was measured in technical replicates on the same plate.
+-   Each drug was measured in "biological" triplicate on different plates. Replicates were performed on the same day.
+-   The MCF10A WT and PI3Kmut cell lines were measured on separate plates
+
+In total, this gives 12 plates
+
+```{r read data, message=FALSE, warning=FALSE}
+data_path <- here("data" , "EnVision", "2017-09-15")
+
+# Annotation excel sheet
+annot <- read_xlsx(
+  file.path(data_path, "/Dose Responses MCF10A Parental&PI3K Report.xlsx"),
+  sheet = "Tabular detail"
+  )
+colnames(annot) <- str_replace_all(make.names(colnames(annot)), "\\.+", "_")
+
+# Well annotation file
+annot <- annot %>% 
+  rename(
+    Well = Dispensed_well,
+    Drug = Fluid_name,
+    Concentration = Dispensed_conc_
+    ) %>% 
+  select(Plate, Well, Drug, Concentration)
+
+# There are 6 plates for each cell line, with 
+# Viability data of the 3 replicates plates are in the same csv file
+# MCF10A-WT plates
+wt_1_path <- file.path(data_path, "CTB_MCF10A_PAR_DRA_20170915.csv")
+wt_1_1 <- read_csv(wt_1_path, skip = 9,  n_max = 16)
+wt_1_2 <- read_csv(wt_1_path, skip = 36, n_max = 16)
+wt_1_3 <- read_csv(wt_1_path, skip = 63, n_max = 16)
+wt_2_path <- file.path(data_path, "CTB_MCF10A_PAR_DRB_20170915.csv")
+wt_2_1 <- read_csv(wt_2_path, skip = 9,  n_max = 16)
+wt_2_2 <- read_csv(wt_2_path, skip = 36, n_max = 16)
+wt_2_3 <- read_csv(wt_2_path, skip = 63, n_max = 16)
+# # MCF1A PI3Kmutant plates
+pi3k_1_path <- file.path(data_path, "CTB_MCF10A_PI3K_DRA_20170915.csv")
+pi3k_1_1 <- read_csv(pi3k_1_path, skip = 9,  n_max = 16)
+pi3k_1_2 <- read_csv(pi3k_1_path, skip = 36, n_max = 16)
+pi3k_1_3 <- read_csv(pi3k_1_path, skip = 63, n_max = 16)
+pi3k_2_path <- file.path(data_path, "CTB_MCF10A_PI3K_DRB_20170915.csv")
+pi3k_2_1 <- read_csv(pi3k_2_path, skip = 9,  n_max = 16)
+pi3k_2_2 <- read_csv(pi3k_2_path, skip = 36, n_max = 16)
+pi3k_2_3 <- read_csv(pi3k_2_path, skip = 63, n_max = 16)
+rm(wt_1_path, wt_2_path, pi3k_1_path, pi3k_2_path)
+```
+
+Cast the data in a tidy format. The technical replicates are combined by taking their mean.
+
+```{r tidy plates, message=FALSE}
+tidy_plate <- function(df, Plate, Rep, annot){
+  df %>% 
+    gather(Row, Viability, -X1) %>% 
+    filter(!is.na(Viability)) %>% 
+    mutate(
+      Viability = as.double(Viability)
+      ) %>% 
+    unite(Well, X1, Row, sep = "") %>% 
+    mutate(Plate = Plate, Rep = Rep) %>% 
+    left_join(annot) %>% 
+    # Unannotated wells contain DSMO
+    mutate(Drug = if_else(is.na(Drug), "DSMO", Drug)) %>% 
+    # Combine the two technical replicates on each plate
+    group_by(Plate, Rep, Drug, Concentration)
+}
+
+wt <- bind_rows(
+  tidy_plate(wt_1_1, 1, 1, annot),
+  tidy_plate(wt_1_2, 1, 2, annot),
+  tidy_plate(wt_1_3, 1, 3, annot),
+  tidy_plate(wt_2_1, 2, 1, annot),
+  tidy_plate(wt_2_2, 2, 2, annot),
+  tidy_plate(wt_2_3, 2, 3, annot)
+  )
+
+pi3k <- bind_rows(
+  tidy_plate(pi3k_1_1, 1, 1, annot),
+  tidy_plate(pi3k_1_2, 1, 2, annot),
+  tidy_plate(pi3k_1_3, 1, 3, annot),
+  tidy_plate(pi3k_2_1, 2, 1, annot),
+  tidy_plate(pi3k_2_2, 2, 2, annot),
+  tidy_plate(pi3k_2_3, 2, 3, annot)
+  )
+rm(wt_1_1, wt_1_2, wt_1_3, wt_2_1, wt_2_2, wt_2_3, 
+   pi3k_1_1, pi3k_1_2, pi3k_1_3, pi3k_2_1, pi3k_2_2, pi3k_2_3)
+```
+
+## Normalize the data
+
+What kind of "noise" do we have in the data? Plot the viability of the DSMO treated cells
+
+```{r plot controls}
+df <- bind_rows(list("WT" = wt, "PI3K" = pi3k), .id = "Cell") %>% 
+  filter(Drug == "DSMO") %>% 
+  unite(Plate_Rep, Plate, Rep) %>% 
+  ungroup()
+
+ggplot(df, aes(x = Cell, y = Viability)) + 
+  geom_boxplot(aes(color = Plate_Rep)) +
+  expand_limits(y = 0) + 
+  ggtitle("DSMO") +
+  theme_minimal(base_family = "Helvetica")
+```
+
+There is no clear differences in viability between the WT and PI3K mutant cells. However, the viability does differ somewhat between plates.
+
+Next, we combine the technical replicates and Normalize the data. Normalize by first subtracting the PAO (= positive control) from the viability measurement and than dividing by (DSMO -PAO) (= negative control).
+
+TODO: Normalize the viability per plate.
+
+```{r normalize viability}
+normalize_viability <- function(df){
+  pao_mean <- mean(dplyr::pull(dplyr::filter(df, Drug == "PAO")))
+  dsmo_mean <- mean(dplyr::pull(dplyr::filter(df, Drug == "DSMO"))) 
+  df %>% mutate(
+    NormalizedViability = (Viability - pao_mean)/(dsmo_mean - pao_mean)
+    )
+}
+
+wt <- wt %>% 
+  summarise(Viability = mean(Viability)) %>% 
+  normalize_viability()
+pi3k <- pi3k %>%  
+  summarise(Viability = mean(Viability)) %>% 
+  normalize_viability()
+
+viabilities <- bind_rows(list("WT" = wt, "PI3K" = pi3k), .id = "Cell") %>% 
+  filter(!(Drug %in% c("DSMO", "PAO"))) %>% 
+  mutate(Cell = factor(Cell, levels = c("WT", "PI3K")))
+```
+
+# Plot drug-response curves
+
+```{r plot curves}
+ggplot(viabilities, aes(x = Concentration, y = NormalizedViability, color = Cell)) +
+  geom_point(shape = 1) +
+  scale_x_log10() +
+  theme_minimal(base_family = "Helvetica") +
+  scale_color_manual(name = "", values = color_lst, labels = label_lst) +
+  facet_wrap(~Drug)
+```
+
+One replicate of WT ERKi and HER2i appears to not have been disposed. Let's find and remove it from the date frame.
+
+```{r}
+filter(viabilities, Drug %in% c("ERKi (SCH772984)", "HER2i (Lapatinib)"), 
+       Concentration == 5, NormalizedViability > 0.5)
+```
+
+It's biological replicate 1 for both.
+
+```{r detect outlier curves}
+annot %>% 
+  filter(Drug %in% c("ERKi (SCH772984)", "HER2i (Lapatinib)")) %>% 
+  mutate(Row = str_sub(Well, 0, 1)) %>% 
+  select(Drug, Row) %>% 
+  distinct()
+```
+
+These drugs are located next to each other on the plate, so a printing mistake is the likely cause. We remove these from the data.
+
+```{r remove outlier curves}
+viabilities_filtered <- filter(
+  viabilities, 
+  !(Drug %in% c("ERKi (SCH772984)", "HER2i (Lapatinib)") & Rep == 1)
+)
+write_tsv(viabilities_filtered, here("results", "pilot", "viabilities-pilot.tsv"))
+```
+
+# Fit IC50s and AUC
+
+We fit IC50 to these curves using Daniel Vis mixed IC50 package.
+
+```{r fit model}
+x_mapping <- tibble(
+  Concentration = rev(unique(viabilities_filtered$Concentration)),
+  x = getXfromConcSeries(rev(unique(viabilities_filtered$Concentration))/5)
+  )
+
+gDat <- viabilities_filtered %>% 
+  ungroup() %>% 
+  left_join(x_mapping) %>% 
+  mutate(y = 1 - if_else(NormalizedViability > 1, 1, NormalizedViability), 
+         maxc = 5) %>% 
+  rename(CL = Cell, drug = Drug) %>% 
+  select(x, y, CL, drug, maxc)
+
+fit <- fitModel(gDat, bLargeScale = FALSE)
+outStats <- gatherModelStats(gDat, fit)
+
+```
+
+Combine the IC50 and AUC measurements in a tidy dataframe. This dataframe is written to results/drug-sensitivities-pilot.tsv
+
+```{r df_sensitivities}
+dat_ic50 <- outStats$IC50 %>% 
+  rownames_to_column("Cell") %>% 
+  gather(Drug, Log_IC50, -Cell) %>% 
+  mutate(Drug = str_replace(Drug, "DrugID", ""), IC50 = exp(Log_IC50))
+
+dat_auc <- outStats$AUC %>% 
+  rownames_to_column("Cell") %>% 
+  gather(Drug, AUC, -Cell) %>% 
+  mutate(Drug = str_replace(Drug, "DrugID", ""))
+
+dat_auctrap <- outStats$AUCtrap %>% 
+  rownames_to_column("Cell") %>% 
+  gather(Drug, AUCtrap, -Cell) %>% 
+  mutate(Drug = str_replace(Drug, "DrugID", ""))
+
+dat_ic10 <- outStats$mcv %>% 
+  mutate(IC10 = getConcentrationFromFold(xmid - scal*log(1/0.1 - 1), fHighConc = 5)) %>% 
+  rename(Cell = CL, Drug = drug) %>% 
+  select(Cell, Drug, IC10)
+
+dat_ic90 <- outStats$mcv %>% 
+  mutate(IC90 = getConcentrationFromFold(xmid - scal*log(1/0.9 - 1), fHighConc = 5)) %>% 
+  rename(Cell = CL, Drug = drug) %>% 
+  select(Cell, Drug, IC90)
+
+df_sensitivities <- dat_ic50 %>% 
+  left_join(dat_ic10) %>% 
+  left_join(dat_ic90) %>% 
+  left_join(dat_auc) %>% 
+  left_join(dat_auctrap) 
+  
+write_tsv(df_sensitivities, here("results/pilot/drug-sensitivities-pilot.tsv"))
+
+df_sensitivities
+```
+
+```{r plot curves with IC50, message=FALSE}
+
+
+ggplot(
+  mutate(viabilities_filtered, Cell = fct_relevel(Cell, "PI3K")), #%>% 
+    #filter(Drug != "GSK3i (SB-216763)"),
+  aes(
+    x = Concentration,
+    y = NormalizedViability,
+    color = Cell,
+    group = Cell
+  )) +
+  geom_vline(aes(xintercept = IC50, color = Cell),
+             data = dat_ic50,
+             show.legend = FALSE) +
+  geom_smooth(show.legend = FALSE) +
+  geom_point(shape = 1, size=1) +
+  scale_x_log10(
+    limits = c(
+      min(viabilities_filtered$Concentration),
+      max(viabilities_filtered$Concentration)
+    ),
+    breaks =  scales::trans_breaks("log10", function(x)
+      10 ^ x),
+    labels = scales::trans_format("log10", scales::math_format(10 ^.x))
+  ) +
+  scale_y_continuous(limits = c(0, 1)) +
+  facet_wrap( ~ Drug) +
+  # No gray background in legend
+  # guides(color = guide_legend(override.aes = list(fill = NA))) +
+  cowplot::theme_minimal_grid(font_family = "Helvetica", font_size = 8) +
+  # theme_minimal() +
+  # theme(strip.text = element_text(hjust = 0), text=element_text(size=6, family = "Helvetica")) +
+  labs(x = "Drug concentration [µM]", y = "Viability (Relative to DMSO)") +
+  scale_color_manual(name = "",
+                     breaks = c("WT", "PI3K"),
+                     values = color_lst,
+                     labels = label_lst)
+
+# ggsave(here("figures", "EnVision", "dose-response-pilot-all.pdf"), width = 5, height = 4)
+
+```
+
+```{r eval=FALSE}
+# Plot single curve
+ggplot(
+    filter(viabilities_filtered, Drug == "mTORi (AZD8055)"), 
+    aes(x = Concentration, y = NormalizedViability, 
+        color = Cell, group = Cell
+    )) +
+    # geom_vline(
+    #     aes(xintercept = IC50, color = Cell),
+    #     data = dat_ic50, show.legend = FALSE
+    # ) +
+    geom_smooth(show.legend = FALSE) +
+    geom_point(shape = 1) +
+    scale_x_log10(
+        limits = c(
+            min(viabilities_filtered$Concentration),
+            max(viabilities_filtered$Concentration)
+        ),
+        breaks =  scales::trans_breaks("log10", function(x) 10^x),
+        labels = scales::trans_format("log10", scales::math_format(10^.x))
+    ) +
+    scale_y_continuous(limits = c(0, 1)) +
+    # facet_wrap(~Drug) +
+    # No gray background in legend
+    guides(color = guide_legend(override.aes = list(fill = NA))) + 
+    theme_minimal() +
+    # theme(strip.text = element_text(hjust = 0)) +
+    labs(x = "Drug concentration [µM]", y = "Viability (Relative to DMSO)", title = "mTORi (AZD8055)") +
+    scale_color_manual(name = "", values = color_lst, labels = label_lst)
+```
+
+# Conclusion
+
+-   WT is more sensitive to MAPK targeting drugs.
+
+    -   EGFRi and HER2i
+    -   ERKi
+    -   MEKi
+
+-   PI3K mutant is more sensitive to AKT-pathway targeting drugs
+
+    -   AKTi
+    -   mTORi
+
+-   Not difference in sensitivity to PI3Ki (slightly unexpected).
+
+# Session info
+
+```{r session info}
+sessioninfo::session_info()
+```
