@@ -175,6 +175,8 @@ pi3k <- pi3k %>%
 
 viabilities <- bind_rows(list("WT" = wt, "PI3K" = pi3k), .id = "Cell") %>% 
   filter(!(Drug %in% c("DSMO", "PAO"))) %>% 
+  # Remove HERi, ALKi and FGFRi as these are not used in perturbation experiments
+  filter(!(Drug %in% c("HER2i (Lapatinib)", "ALKi (Crizotinib)", "FGFRi (AZD4547)"))) %>% 
   mutate(Cell = factor(Cell, levels = c("WT", "PI3K")))
 ```
 
@@ -279,11 +281,9 @@ df_sensitivities
 ```
 
 ```{r plot curves with IC50, message=FALSE}
-
-
 ggplot(
-  mutate(viabilities_filtered, Cell = fct_relevel(Cell, "PI3K")), #%>% 
-    #filter(Drug != "GSK3i (SB-216763)"),
+  mutate(viabilities_filtered, Cell = fct_relevel(Cell, "PI3K")) %>% 
+    filter(!(Drug %in% c("HER2i (Lapatinib)", "ALKi (Crizotinib)", "FGFRi (AZD4547)"))),
   aes(
     x = Concentration,
     y = NormalizedViability,
@@ -321,36 +321,6 @@ ggplot(
 
 ```
 
-```{r eval=FALSE}
-# Plot single curve
-ggplot(
-    filter(viabilities_filtered, Drug == "mTORi (AZD8055)"), 
-    aes(x = Concentration, y = NormalizedViability, 
-        color = Cell, group = Cell
-    )) +
-    # geom_vline(
-    #     aes(xintercept = IC50, color = Cell),
-    #     data = dat_ic50, show.legend = FALSE
-    # ) +
-    geom_smooth(show.legend = FALSE) +
-    geom_point(shape = 1) +
-    scale_x_log10(
-        limits = c(
-            min(viabilities_filtered$Concentration),
-            max(viabilities_filtered$Concentration)
-        ),
-        breaks =  scales::trans_breaks("log10", function(x) 10^x),
-        labels = scales::trans_format("log10", scales::math_format(10^.x))
-    ) +
-    scale_y_continuous(limits = c(0, 1)) +
-    # facet_wrap(~Drug) +
-    # No gray background in legend
-    guides(color = guide_legend(override.aes = list(fill = NA))) + 
-    theme_minimal() +
-    # theme(strip.text = element_text(hjust = 0)) +
-    labs(x = "Drug concentration [µM]", y = "Viability (Relative to DMSO)", title = "mTORi (AZD8055)") +
-    scale_color_manual(name = "", values = color_lst, labels = label_lst)
-```
 
 # Conclusion
 
@@ -366,6 +336,8 @@ ggplot(
     -   mTORi
 
 -   Not difference in sensitivity to PI3Ki (slightly unexpected).
+
+But all effects are really subtle.
 
 # Session info
 
