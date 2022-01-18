@@ -216,12 +216,12 @@ p <- inner_join(
 p
 
 p_exp <- p + 
-  facet_wrap(~Epitope,  scales = "free", labeller = as_labeller(labels), ncol = 2) +
-  cowplot::theme_half_open(font_family = "Helvetica", font_size = 8)
+  facet_wrap(~Epitope,  scales = "free", labeller = as_labeller(labels), nrow = 2) +
+  cowplot::theme_half_open(font_family = "Helvetica", font_size = 6)
 
 ggsave(
   here("figures", "luminex", "correlation-WT-PI3K.pdf"), p_exp,
-  height = 4, width = 3
+  height = 2, width = 6
 )
 
 ```

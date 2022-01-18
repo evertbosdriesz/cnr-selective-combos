@@ -52,7 +52,7 @@ sns.heatmap(dat_sel.iloc[[-1]], ax=axs[1],
             linewidths=.5,
             cbar=False, vmin=0, vmax=1, cmap="Blues",
            )
-axs[1].set_title("Predicted selectivity", loc='left', fontsize=8);
+axs[1].set_title("Predicted anti-selectivity", loc='left', fontsize=8);
 axs[1].set_ylabel('')  
 plt.tight_layout()
 plt.savefig("../figures/validation/selected-combos-overview.pdf")
@@ -76,7 +76,7 @@ sns.heatmap(dat_ctr.iloc[[-1]], ax=axs[1],
             linewidths=.5,
             cbar=False, vmin=0, vmax=1, cmap="Blues",
            )
-axs[1].set_title("Predicted selectivity", loc='left', fontsize=8);
+axs[1].set_title("Predicted anti-selectivity", loc='left', fontsize=8);
 axs[1].set_ylabel('')  
 plt.tight_layout()
 plt.savefig("../figures/validation/control-combos-overview.pdf")

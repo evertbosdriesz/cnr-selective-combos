@@ -103,10 +103,10 @@ plt_validation <-
   geom_boxplot(outlier.colour = NA) +
   labs(
     x = "",
-    y = "Measured selectivity"
+    y = "Measured anti-selectivity"
   ) +
   scale_color_manual(values = c("gray", "red")) +
-  scale_x_discrete(labels = c("Control", "Predicted\nSelective")) +
+  scale_x_discrete(labels = c("Control", "Predicted\nanti-selective")) +
   cowplot::theme_cowplot(font_family = "Helvetica", font_size = 6) +
   theme(legend.position = "none")
   

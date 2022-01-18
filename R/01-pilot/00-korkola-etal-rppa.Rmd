@@ -103,8 +103,8 @@ ggplot(df_pao, aes(x = time, y = expression, color = treatment)) +
   scale_x_log10() +
   labs(x = "Time (hrs)", y = "Normalized, log2-transformed centered expression",
        title = "RPPA time course of selected epitopes") +
-  facet_grid(cell_line~epitope) +
-  my_theme
+  facet_grid(cell_line~epitope) 
+  #my_theme
 ```
 
 Of note:
@@ -112,7 +112,29 @@ Of note:
   * For selection of the timepoint: AKT shows little dynamics after 1 hour.
   * pS6 continues to decrease after 1 hour, but in most cell lines where it decreases, clear onset present after 1 hour.
   * Most other epitopes remain flat. This is not very surprising since e.g. the MAPK pathway is not perturbed. 
-  However, when using a restimulation experiment, we might see more dynamics.
+
+We also plot the dymanics of AKT only.
+
+```{r}
+ggplot(
+  filter(df_pao, epitope == "AKT_pS473(V)"),
+  aes(x = time, y = expression, color = cell_line)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~treatment, scales = "free_y", nrow=1) +
+  xlim(c(0, 8)) +
+  labs(x = "Time (hrs)", y = "Normalized, log2-\ntransformed expression",
+       title = "phospho-AKT dynamics in Korkola et al. ") +
+  cowplot::theme_cowplot(font_family = "Helvetica", font_size = 6) +
+  theme(legend.position = "bottom", legend.title = element_blank()) +
+  guides(color=guide_legend(nrow=2,byrow=TRUE))
+
+
+ggsave(here("figures", "Misc", "Korkula-time-course.pdf"),  height = 1.5, width = 6)
+```
+```
+
+
 
 
 # Session Info
