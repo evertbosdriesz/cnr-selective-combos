@@ -1,3 +1,4 @@
+.DS_Store
 .Rproj.user
 .Rhistory
 .RData
@@ -7,3 +8,5 @@ cnr-selective-combos.Rproj
 python/.ipynb_checkpoints/cnr-mcf10a-pi3k-checkpoint.ipynb
 python/.ipynb_checkpoints/cnr-mcf10a-pi3k-checkpoint.ipynb
 python/.ipynb_checkpoints/cnr-mcf10a-pi3k-checkpoint.ipynb
+python/.ipynb_checkpoints/cnr-mcf10a-pi3k-checkpoint.ipynb
+R/02-perturbations/.DS_Store

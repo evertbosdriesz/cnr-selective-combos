@@ -15,7 +15,8 @@ editor_options:
 
 # Introduction
 
-In our experiments, viabilities are measured in a 3-day CellTiter-Blue assay, while signaling responses are measured in the Luminex 2 hours after drug perturbation. Here, we test to what extend differences in viability can be predicted from the measured signaling response, and parametrize this relation.
+In our experiments, viabilities are measured in a 3-day CellTiter-Blue assay, while signaling responses are measured in the Luminex 2 hours after drug perturbation.
+Here, we test to what extend differences in viability can be predicted from the measured signaling response, and parametrize this relation.
 
 ```{r knitr_init, echo=FALSE, cache=FALSE}
 library(knitr)
@@ -27,6 +28,7 @@ library(tidyverse)
 library(here)
 library(broom)
 library(rmarkdown)
+library(patchwork)
 
 source(here("R/graphics-settings.R"))
 ```
@@ -46,7 +48,8 @@ wt_env <- read_tsv(here("results", "perturbations", "wt-envision.tsv"))
 pi3k_env <- read_tsv(here("results", "perturbations", "pi3k-envision.tsv"))
 ```
 
-First, we prepare the data-frame dat\_lfc, containing the log2 fold-changes of each epitope together with the Viabilities. The FGFRi treatments are discarded in the network reconstruction, so we'll also not include it here.
+First, we prepare the data-frame dat_lfc, containing the log2 fold-changes of each epitope together with the Viabilities.
+The FGFRi treatments are discarded in the network reconstruction, so we'll also not include it here.
 
 ```{r dat_lfc}
 wt <- left_join(
@@ -79,12 +82,12 @@ rm(wt, pi3k)
 paged_table(head(dat_lfc))
 ```
 
-
 # Correlations between log2 fold change and viability
 
 A first simple approach is to look at the correlations between Epitopes and Inhibition.
 
-We see a pretty nice negative correlation between the log2-fold change in pAKT and pERK, and drug efficacy. However, none of the nodes is very predictive for viabilty by itself.
+We see a pretty nice negative correlation between the log2-fold change in pAKT and pERK, and drug efficacy.
+However, none of the nodes is very predictive for viabilty by itself.
 
 ```{r figure epitopes-viability-measured-scatter, fig.height=6, message=FALSE}
 ggplot(
@@ -136,7 +139,7 @@ plt + labs(title = "Correlation between signaling responses and viability")
 
 ```
 
-ERK1 and AKT have the strongest correlation with Inhibition.
+ERK1 and AKT have the strongest correlation with inhibition.
 
 ```{r correlation lfc}
 dat_lfc %>%
@@ -146,19 +149,180 @@ dat_lfc %>%
   arrange(desc(Correlation)) %>%
   paged_table()
 ```
-# Michaelis-Menten-like transfer functions
 
-We saw that ∆pAKT1 and ∆pERK1 both had a reasonable correlation with viability, clearly not perfect.
-We therefor try a model that incorportates both:
- 
-$$\mathrm{viability} \sim \frac{1}{1 - \Delta ERK1/KM_{ERK1} - \Delta AKT/KM_{AKT}}$$
+# Exploration using Linear model
 
-```{r fit nonlinear on full data, message=FALSE}
+Next, let's see how well we can predict inhibition from short-term signaling responses using a linear model.
+
+We first fit a linear model using all Epitopes.
+We remove the intercept because in the absence of any deviation in signaling activity, viability should be equal to that of DMSO control and hence inhibition should be 0.
+
+```{r fit_lm_all}
+fit_lm_all <- 
+  dat_lfc %>%
+    select(-Treatment, -Akt1, -Cell) %>% 
+  lm(
+  formula = 1 - Viability ~ 0 + ., 
+  data = .) 
+
+summary(fit_lm_all)
+```
+
+We get a surprisingly good fit (R-squared \~ 0.9, although this is lower when an intercept is included, not shown).
+ERK1, BioAkt and MEK1 are significant predictors.
+BioAkt and ERK1 have the expected, negative, sign.
+BioAkt has a small coefficient, due to it's generally large LFCs.
+MEK1 has a positive sign.
+However, MEK1 is highly correlated with ERK1 (pearson correlation = `r cor(dat_lfc$MEK1, dat_lfc$ERK1, method="pearson")`), so that doesn't mean much.
+
+How well does a model only containing ERK1 and BioAkt fit the data?
+
+```{r fit_lm_erkakt}
+fit_lm_erkakt <- lm(
+  formula = 1 - Viability ~  0 + BioAkt + ERK1, 
+  data = dat_lfc )
+
+summary(fit_lm_erkakt)
+```
+
+Still very well, with an R-squared \~ 0.8
+
+The plot below shows that there is some structure in the residuals vs fitted values (see below), suggesting that the relation between log2-fold change and viability is not quite linear (which is not unexpected).
+
+```{r res fit_lm_all, message = FALSE}
+p_res_linfull <- 
+  ggplot(
+    left_join(broom::augment(fit_lm_all), dat_lfc),
+    aes(x = .fitted, y = .std.resid)) +
+    geom_point(aes(color = Cell)) +
+    geom_smooth(span = 1) +
+    scale_color_manual(name = "", values = color_lst, labels = label_lst) +
+    cowplot::theme_cowplot(font_family = "Helvetica") +
+    theme(legend.position = "bottom") + 
+    labs(titles = "Linear model", subtitle = "All epitopes", 
+         x = "Fitted", y = "Residuals")
+
+p_res_lin <-
+  ggplot(
+    left_join(broom::augment(fit_lm_erkakt), dat_lfc),
+    aes(x = .fitted, y = .std.resid)) +
+    geom_point(aes(color = Cell)) +
+    geom_smooth(span = 1) +
+    scale_color_manual(name = "", values = color_lst, labels = label_lst) +
+    cowplot::theme_cowplot(font_family = "Helvetica") +
+    theme(legend.position = "bottom") + 
+    labs(title = "Linear model", subtitle = "ERK and AKT only", 
+         x = "Fitted", y = "Residuals")
+
+p_res_linfull + p_res_lin
+
+ggsave(
+  here("figures/correlations-and-predictions/residuals-fitted-linear.pdf"), 
+  p_res_lin + 
+    cowplot::theme_cowplot(font_family = "Helvetica", font_size = 6) +
+    theme(legend.position = "bottom"),
+  width = 2, height = 3)
+
+ggsave(
+  here("figures/correlations-and-predictions/residuals-fitted-linear-full.pdf"), 
+  p_res_linfull + 
+    cowplot::theme_cowplot(font_family = "Helvetica", font_size = 6) +
+    theme(legend.position = "bottom"),
+  width = 2, height = 3)
+
+```
+
+# Non-linear transfer functions
+
+We saw that a linear regression of ∆pAKT1 and ∆pERK1 gave a reasonable fit, but also that a non-linear "activation function" for the viability might make more sense.
+We'll test this next.
+
+Specifically, we'll test the following transfer functions.
+These are designed such that when ERK1 or AKT1 are at their DMSO level (∆AKT or ∆ERK = 0), the viability is 1, and when they go to 0 (∆AKT or to -$\infty$) the viability is 0:
+
+1.  Michelis-Menten like: $\mathrm{viability} \sim \frac{1}{1 - \Delta ERK1/KM_{ERK1} - \Delta AKT/KM_{AKT}}$.
+    This has the disadvantage that it becomes unstable for positive ∆ERK and ∆AKT (especially as these approach their KM).
+    However, in all perturbations we tested, we find very few instances where these are positive.
+
+
+2.  MM-multiplicative: $\mathrm{viability} \sim 1 / \left(1 - \frac{\Delta AKT}{KM_{AKT}}\right)\left(1 - \frac{\Delta ERK}{KM_{ERK}}\right)$.
+    Similar as above, but with multiplicative effects of  the inhibitors.
+    
+
+3.  Logistic-like: $\mathrm{viability} \sim \frac{2}{1+2^{\Delta ERK/KM_{ERK}}} * \frac{2}{1+2^{\Delta AKT/KM_{AKT}}}$, with ∆ERK and ∆AKT being the log2-fold changes.
+    This function models the viability as the product of logistic-like curves for each epitope.
+    It is normalized such that the viability is 1 when ∆ERK and ∆AKT are 0.
+    For large, positive values of ∆AKT or ∆ERK this function will asymptotically approach 4, which is biologically unlike.
+    Hence, it is only a useful function for (predominantly) negative fold-changes.
+
+4.  Logistive-additative: $\mathrm{viabilty} \sim \frac{3}{1+2^{-\Delta ERK/KM_{ERK}} +2^{-\Delta AKT/KM_{AKT}}}$, similar as above, but with additative instead of multiplicative effects of ERK and AKT inhibition.
+
+To properly test all transfer functions (including the linear ones), wel compare them using a leave-one-out cross-validation.
+
+## Model selection using model fit and LOO cross-validation
+
+```{r define models}
+formula_lin <- 1-Viability ~ 0 + ERK1 + BioAkt
+
+formula_mm_mult <- Viability ~ 1 / ((1 - ERK1 / KM_ERK1) * (1 - BioAkt / KM_BioAkt))
+formula_mm  <- Viability ~ (1/(1 + -ERK1 / KM_ERK1 + -BioAkt / KM_BioAkt))
+
+formula_log <- Viability ~ 4 / ((1 + 2^(-ERK1 / KM_ERK1)) * (1 + 2^-(BioAkt / KM_BioAkt)))
+formula_log_add  <- Viability ~ 3 / ((1 + 2^(-ERK1 / KM_ERK1) + 2^-(BioAkt / KM_BioAkt)))
+```
+
+We will first fit all models to the data and consider the residual standard error.
+
+```{r df_sigma}
+lst_formula <- c("MM" = formula_mm, "MM_mult" = formula_mm_mult, 
+                 "log" = formula_log, "log_add" = formula_log_add)
+
+fits_wt <- 
+  map(lst_formula,
+  function(x) {
+    nls(formula = x,
+      data = filter(dat_lfc, Cell == "WT"),
+      start = list("KM_ERK1" = 0.5, "KM_BioAkt" = 2.5))  
+  }
+)
+
+fits_pi3k <- 
+  map(lst_formula,
+  function(x) {
+    nls(formula = x,
+      data = filter(dat_lfc, Cell == "PI3K"),
+      start = list("KM_ERK1" = 0.5, "KM_BioAkt" = 2.5))  
+  }
+)
+
+df_sigma <- 
+  bind_rows(
+  "WT" = as_tibble(map(fits_wt, sigma)),
+  "PI3K" = as_tibble(map(fits_pi3k, sigma)),
+  .id = "Cell"
+  ) %>% 
+  pivot_longer(-Cell, names_to = "Formula", values_to = "sigma") %>% 
+  group_by(Formula) %>% 
+  summarise(mean_residual_standard_error = mean(sigma)) %>% 
+  add_row(Formula = "lm_full", mean_residual_standard_error = sigma(fit_lm_all)) %>% 
+  add_row(Formula = "lm_erk_akt", mean_residual_standard_error = sigma(fit_lm_erkakt))
+
+df_sigma %>% 
+  arrange(mean_residual_standard_error) 
+  
+
+```
+
+Based on this, the Michaelis-Menten like model gives the best fit.
+Since all models have the same number of parameters, these fits should be comparable. 
+
+The Michealis-Menten like models also does not show a structure in the residuals
+
+```{r residuals MM}
 subtitle_mm <- expression(
   "Viability ~ " * frac("1","[1 + -"*Delta*"AKT/KM"[AKT] * " + -"
   * Delta*"ERK1/KM"[ERK] * "]"))
 
-formula_mm  <- Viability ~ (1/(1 + -ERK1 / KM_ERK1 + -BioAkt / KM_BioAkt))
 
 fit_mm_wt  <- nls(
   formula_mm, filter(dat_lfc, Cell == "WT"), 
@@ -170,6 +334,285 @@ fit_mm_pi3k  <- nls(
   start = list("KM_ERK1" = 0.5, "KM_BioAkt" = 2.5)
   )
 
+
+p_res_mm <- 
+  bind_rows(
+  "PI3K" = broom::augment(fit_mm_pi3k), "WT" = broom::augment(fit_mm_wt), 
+  .id = "Cell"
+  ) %>% 
+  ggplot(aes(x = .fitted, y = .resid)) +
+    geom_point(aes(color = Cell)) +
+    geom_smooth(span = 1) +
+    scale_color_manual(name = "", values = color_lst, labels = label_lst) +
+    cowplot::theme_cowplot(font_family = "Helvetica") +
+    theme(legend.position = "bottom") + 
+    labs(title = "Michaelis-Menten like", subtitle = subtitle_mm,
+         x = "Fitted", y = "Standardized Residuals")
+
+p_res_mm
+
+
+ggsave(
+  here("figures/correlations-and-predictions/residuals-fitted-mm.pdf"), 
+  p_res_mm + 
+    cowplot::theme_cowplot(font_family = "Helvetica", font_size = 6) +
+    theme(legend.position = "bottom"),
+  width = 2, height = 3)
+```
+
+
+How does this compare to the linear models? 
+Let's do a leave one out cross validation to find out.
+
+```{r loocv}
+# Function to perform the model fitting
+get_loo_results <- function(splits, formula, starts = NA, grouped = FALSE,
+                            method = "nls", maxiter = 100){
+  # Get the analysis data
+  dat <- rsample::analysis(splits)
+
+  # Remove data not matching the assesment cell line
+  if (grouped) {
+    dat <- filter(dat, Cell == rsample::assessment(splits)$Cell)
+  }
+  # Train the model
+  if (method == "nls") {
+    mod <- nls(formula = formula, data = dat, start = starts,
+               nls.control(maxiter = maxiter))
+  } else if (method == "lm") {
+    mod <- lm(formula = formula, data = dat)
+  }
+
+  # Obtain model parameters and predictions
+  bind_cols(
+    select(broom::augment(mod, newdata = rsample::assessment(splits)),
+           Cell, Treatment, Viability, .fitted),
+    spread(select(broom::tidy(mod), term, estimate), term, estimate)
+  )
+  #  broom::augment(mod, newdata = rsample::assessment(splits))
+}
+
+loo_lm_full <- 
+  dat_lfc %>%
+  filter(Treatment != "DMSO") %>%
+  rsample::loo_cv() %>%
+  pull(splits) %>%
+  map(get_loo_results,
+      as.formula(1-Viability ~ 0 + BioAkt + CREB1 + EGFR + ERK1 +GSK3 + MEK1 + 
+                   P70S6K + PRAS40 + RS6),
+      method = "lm",
+      grouped = TRUE) %>%
+  bind_rows() %>%
+  mutate(
+    model = "lm_full",
+    PredictedViability = 1 - .fitted) %>%
+  select(-.fitted)
+
+loo_lm_akterk <- 
+  dat_lfc %>%
+  filter(Treatment != "DMSO") %>%
+  rsample::loo_cv() %>%
+  pull(splits) %>%
+  map(get_loo_results,
+      as.formula(1-Viability ~ 0 + BioAkt + ERK1),
+      method = "lm",
+      grouped = TRUE) %>%
+  bind_rows() %>%
+  mutate(
+    model = "lm_erk_akt",
+    PredictedViability = 1 - .fitted) %>%
+  select(-.fitted)
+
+
+
+loo_mm <- dat_lfc %>%
+  filter(Treatment != "DMSO") %>%
+  rsample::loo_cv() %>%
+  pull(splits) %>%
+  map(get_loo_results,
+      formula = formula_mm,
+      start = list("KM_ERK1" = 0.8, "KM_BioAkt" = 4),
+      grouped = TRUE,
+      maxiter = 1000
+  ) %>%
+  bind_rows() %>%
+  mutate(model = "MM") %>%
+  rename(PredictedViability = .fitted)
+
+
+loo_mm_mult <- dat_lfc %>%
+  filter(Treatment != "DMSO") %>%
+  rsample::loo_cv() %>%
+  pull(splits) %>%
+  map(get_loo_results,
+      formula = formula_mm_mult,
+      start = list("KM_ERK1" = 0.8, "KM_BioAkt" = 4),
+      grouped = TRUE,
+      maxiter = 1000
+  ) %>%
+  bind_rows() %>%
+  mutate(model = "MM_mult") %>%
+  rename(PredictedViability = .fitted)
+
+
+loo_log <- 
+  dat_lfc %>%
+  filter(Treatment != "DMSO") %>%
+  rsample::loo_cv() %>%
+  pull(splits) %>%
+  map(get_loo_results,
+      formula = formula_log,
+      start = list("KM_ERK1" = 1, "KM_BioAkt" = 10),
+      grouped = TRUE) %>%
+  bind_rows() %>%
+  mutate(model = "log") %>%
+  rename(PredictedViability = .fitted)
+
+
+loo_log_add <-
+  dat_lfc %>%
+  filter(Treatment != "DMSO") %>%
+  rsample::loo_cv() %>%
+  pull(splits) %>%
+  map(get_loo_results,
+      formula = formula_log_add,
+      start = list("KM_ERK1" = 0.8, "KM_BioAkt" = 4.8),
+      grouped = TRUE,
+      maxiter = 1000
+  ) %>%
+  bind_rows() %>%
+  mutate(model = "log_add") %>%
+  rename(PredictedViability = .fitted)
+
+loo_results <- bind_rows(
+  loo_lm_full, loo_lm_akterk,
+  loo_mm, loo_mm_mult, loo_log, loo_log_add
+)
+
+tab_loo <- 
+  loo_results %>%
+  group_by(model) %>% 
+   summarise(
+    L2 = sum((Viability - PredictedViability)^2/(2*length(unique(dat_lfc$Treatment)))),
+    pearson = cor(Viability, PredictedViability),
+    spearman = cor(Viability, PredictedViability, method = "spearman")
+  ) %>%
+  arrange(L2) 
+
+df_sigma %>% 
+  rename(model = Formula) %>% 
+  full_join(tab_loo) %>%
+  arrange(mean_residual_standard_error) 
+
+# tab_loo <- 
+#   loo_results %>%
+#   group_by(model) %>% 
+#    summarise(
+#     L2 = sum((Viability - PredictedViability)^2/(2*length(unique(dat_lfc$Treatment)))),
+#     pearson = cor(Viability, PredictedViability),
+#     spearman = cor(Viability, PredictedViability, method = "spearman")
+#   ) %>%
+#   arrange(L2) 
+# 
+# 
+# tab <- df_sigma %>% 
+#   rename(model = Formula) %>% 
+#   full_join(tab_loo) %>%
+#   arrange(mean_residual_standard_error) 
+
+#left_join(df_sigma, tab_loo, by = c("model" = "Formula"))
+```
+
+
+```{r write_table, echo=FALSE}
+# form_mm_mult <- $\mathrm{viability} \sim \frac{1}{1 - \Delta ERK1/KM_{ERK1} - \Delta AKT/KM_{AKT}}$
+# #   expression(
+# #   "Viability ~ " *
+# #     frac("1", "1 - " * "R"[AKT]*"/KM"[AKT]) * " " *
+# #     frac("1", "1 - " * "R"[ERK1]*"/KM"[ERK])
+# # )
+# 
+# form_log  <- expression(
+#   "Viability ~ " *
+#     frac("2", "1 + 2"^{"-"*Delta*"AKT/KM"[AKT]}) * " " *
+#     frac("2", "1 + 2"^{"-"*Delta*"ERK1/KM"[ERK]})
+# )
+# 
+# form_log_add  <- expression(
+#   "Viability ~ " *
+#     frac("3", "1 + 2"^{"-"*Delta*"AKT/KM"[AKT]}
+#          * " + 2"^{"-"*Delta * "ERK1/KM"[ERK]})
+# )
+# 
+# form_mm <- expression(
+#   "Viability ~ " * frac("1","[1 + -"*Delta*"AKT/KM"[AKT] * " + -"
+#   * Delta*"ERK1/KM"[ERK] * "]"))
+# 
+# kable(tibble(
+#   model = c("MM", "MM_mult", "log", "log_add"),
+#   formula = c(form_mm, form_mm_mult, form_log, form_log_add)))
+# 
+# tab_loo <- 
+#   loo_results %>%
+#   group_by(model) %>% 
+#    summarise(
+#     L2 = sum((Viability - PredictedViability)^2/(2*length(unique(dat_lfc$Treatment)))),
+#     pearson = cor(Viability, PredictedViability),
+#     spearman = cor(Viability, PredictedViability, method = "spearman")
+#   ) %>%
+#   arrange(L2) 
+# 
+# 
+# tab <- df_sigma %>% 
+#   rename(model = Formula) %>% 
+#   full_join(tab_loo) %>%
+#   arrange(mean_residual_standard_error) 
+# tab
+# 
+# as_tibble(forms)
+```
+
+
+The results depend a bit on which metric is chosen, but overall the michaelis-menten like functions performs best and has the most straightforward, so we will continue with that.
+
+Of note, the (LOO) predictions of all non-linear functions are highly correlated.
+
+```{r correlations}
+mat <- loo_results %>%
+  select(Cell, Treatment, model, PredictedViability) %>%
+  spread(model, PredictedViability) %>%
+  select(-Cell, -Treatment) %>%
+  as.matrix() %>%
+  cor(method = 'pearson')
+
+corrplot::corrplot(mat, method="number", type="upper", order="hclust")
+```
+
+
+# Final model selection: Michaelis-Menten-like transfer functions
+
+Based on the cross-validated prediction performance, we selected to use the Michaelis-menten like transfer function.
+
+$$\mathrm{viability} \sim \frac{1}{1 - \Delta ERK1/KM_{ERK1} - \Delta AKT/KM_{AKT}}$$
+
+
+```{r fit nonlinear on full data, message=FALSE}
+# subtitle_mm <- expression(
+#   "Viability ~ " * frac("1","[1 + -"*Delta*"AKT/KM"[AKT] * " + -"
+#   * Delta*"ERK1/KM"[ERK] * "]"))
+# 
+# formula_mm  <- Viability ~ (1/(1 + -ERK1 / KM_ERK1 + -BioAkt / KM_BioAkt))
+# 
+# fit_mm_wt  <- nls(
+#   formula_mm, filter(dat_lfc, Cell == "WT"), 
+#   start = list("KM_ERK1" = 0.5, "KM_BioAkt" = 2.5)
+#   )
+# 
+# fit_mm_pi3k  <- nls(
+#   formula_mm, filter(dat_lfc, Cell == "PI3K"), 
+#   start = list("KM_ERK1" = 0.5, "KM_BioAkt" = 2.5)
+#   )
+# 
 prediction_wt <- broom::augment(fit_mm_wt, filter(dat_lfc, Cell == "WT")) %>% 
   rename(PredictedViability = .fitted)
 
@@ -199,6 +642,8 @@ ggplot(prediction_combined,
 #        width=2, height=2)
 ```
 
+
+
 We obtain the following parameters from this.
 
 ```{r write parameters to file}
@@ -215,62 +660,9 @@ write_tsv(params,
 )
 ```
 
-# Model assesment using LOO cross-validation
-
-While we have a model that has just to parameters, we nonetheless still check the performance in a leave-one-out cross validation loop.
 
 
-```{r loo_results, warning=FALSE}
-# Function to perform the model fitting
-get_loo_results <- function(splits, formula, starts = NA, grouped = FALSE,
-                            method = "nls", maxiter = 100){
-  # Get the analysis data
-  dat <- rsample::analysis(splits)
-
-  # If a grouped (i.e. per-cell-line) model is used, remove analisys data not
-  # matching the assesment sample.
-  if (grouped) {
-    dat <- filter(dat, Cell == rsample::assessment(splits)$Cell)
-  }
-  # Train the model
-  if (method == "nls") {
-    mod <- nls(formula = formula, data = dat, start = starts,
-               nls.control(maxiter = maxiter))
-  } else if (method == "lm") {
-    mod <- lm(formula = formula, data = dat)
-  }
-
-  # Obtain model parameters and predictions
-  bind_cols(
-    select(broom::augment(mod, newdata = rsample::assessment(splits)),
-           Cell, Treatment, Viability, .fitted),
-    spread(select(broom::tidy(mod), term, estimate), term, estimate)
-  )
-  #  broom::augment(mod, newdata = rsample::assessment(splits))
-}
-
-#-------------------------------------------------------------------------------
-# MM-like models
-
-loo_mm_grouped <- dat_lfc %>%
-  filter(Treatment != "DMSO") %>%
-  rsample::loo_cv() %>%
-  pull(splits) %>%
-  map(get_loo_results,
-      formula = formula_mm,
-      start = list("KM_ERK1" = 0.8, "KM_BioAkt" = 4),
-      grouped = TRUE,
-      maxiter = 1000
-  ) %>%
-  bind_rows() %>%
-  mutate(grouping = "per-cell-line", model = "MM") %>%
-  rename(PredictedViability = .fitted)
-
-summarise(loo_mm_grouped, pearson = cor(Viability, PredictedViability))
-```
-As expected, the performance in a cross-validation loop is comparable (but slighlty worse).
-
-# Parameter uncertainty estimation using bootstrapping
+## Parameter uncertainty estimation using bootstrapping
 
 The model fits the data fairly well.
 To perform parameter uncertainty estimation, and asses to what extend the parameters might differ between the cell lines, we perform 1000 bootstraps.
@@ -321,7 +713,7 @@ boot_results <- bind_rows(
   .id = "model")
 ```
 
-The plot below shows the 95% confidence intervals of the parameters overlap between the cell lines. 
+The plot below shows the 95% confidence intervals of the parameters overlap between the cell lines.
 
 ```{r plot bootstrapped parameter estimates}
 tmp <- gather(boot_results, term, estimate, KM_BioAkt, KM_ERK1) %>%
@@ -355,6 +747,7 @@ plt
 
 -   The phenotypic response (Viability) can be predicted well from the measured signaling responses. This is surprising as signaling is measured after 2 hours, whereas viability is a 3-day assay.
 -   Changes in ERK1 and AKT1 are most informative.
+-   Non-linear transfer functions have better performance than linear ones (with similar or more number of parameters). The "Michaelis-Menten"-like functions gives the best performance (but other non-linear functions give very similar results).
 
 # Session Info
 
