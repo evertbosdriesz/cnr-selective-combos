@@ -102,7 +102,7 @@ graph [
     source 0
     target 1
     weight 4.0651839423056
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 6.0977759134584
     deviation 1.0
@@ -121,6 +121,7 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "1.02"
     added 1
   ]
   edge [
@@ -133,6 +134,7 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.06"
     added 1
   ]
   edge [
@@ -145,13 +147,14 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.12"
     added 1
   ]
   edge [
     source 2
     target 1
     weight -2.253576462392827
-    color "red"
+    color "gray"
     edgetype "local_response"
     penwidth 3.3803646935892404
     deviation 1.0
@@ -163,20 +166,21 @@ graph [
   edge [
     source 2
     target 0
-    weight 0.9425707988502813
+    weight 0.9425707988502807
     color "gray"
     edgetype "local_response"
-    penwidth 1.4138561982754219
+    penwidth 1.413856198275421
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.94"
     added 0
   ]
   edge [
     source 3
     target 1
     weight 0.7490666276777311
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 1.1235999415165967
     deviation 1.0
@@ -195,6 +199,7 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.66"
     added 1
   ]
   edge [
@@ -207,13 +212,14 @@ graph [
     deviation 0.0
     sign "negative"
     curved 1
+    edgelabel "-1.28"
     added 0
   ]
   edge [
     source 4
     target 3
     weight 0.8523444880616995
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 1.2785167320925492
     deviation 1.0
@@ -226,7 +232,7 @@ graph [
     source 5
     target 6
     weight 0.1919177215458927
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 0.28787658231883906
     deviation 1.0
@@ -238,20 +244,21 @@ graph [
   edge [
     source 5
     target 0
-    weight -0.08458228550695769
+    weight -0.08458228550695746
     color "gray"
     edgetype "local_response"
-    penwidth 0.12687342826043654
+    penwidth 0.12687342826043618
     deviation 0.0
     sign "negative"
     curved 1
+    edgelabel "-0.08"
     added 1
   ]
   edge [
     source 5
     target 2
     weight 0.2833352794428105
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 0.42500291916421573
     deviation 1.0
@@ -270,13 +277,14 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.03"
     added 1
   ]
   edge [
     source 7
     target 5
     weight 1.3506280339481749
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 2.0259420509222625
     deviation 1.0
@@ -295,13 +303,14 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.71"
     added 1
   ]
   edge [
     source 9
     target 1
     weight -6.627811417293375
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 9.941717125940063
     deviation 1.0
@@ -313,7 +322,7 @@ graph [
     source 10
     target 5
     weight -1.9394847723895141
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 2.909227158584271
     deviation 1.0
@@ -325,7 +334,7 @@ graph [
     source 11
     target 1
     weight -2.7636686009360867
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 4.1455029014041305
     deviation 1.0
@@ -337,7 +346,7 @@ graph [
     source 12
     target 1
     weight -6.364302905579905
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 9.546454358369857
     deviation 1.0
@@ -349,7 +358,7 @@ graph [
     source 13
     target 8
     weight -0.44116764584853563
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 0.6617514687728034
     deviation 1.0
@@ -361,7 +370,7 @@ graph [
     source 13
     target 1
     weight -7.189650300172911
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 10.0
     deviation 1.0

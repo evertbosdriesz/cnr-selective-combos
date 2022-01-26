@@ -163,10 +163,10 @@ graph [
   edge [
     source 2
     target 0
-    weight 0.9425707988502813
+    weight 0.9425707988502807
     color "gray"
     edgetype "local_response"
-    penwidth 9.425707988502813
+    penwidth 9.425707988502808
     deviation 0.0
     sign "positive"
     curved 1
@@ -238,10 +238,10 @@ graph [
   edge [
     source 5
     target 0
-    weight -0.08458228550695769
+    weight -0.08458228550695746
     color "gray"
     edgetype "local_response"
-    penwidth 0.8458228550695769
+    penwidth 0.8458228550695746
     deviation 0.0
     sign "negative"
     curved 0

@@ -102,7 +102,7 @@ graph [
     source 0
     target 1
     weight 0.502891678904116
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 0.754337518356174
     deviation 1.0
@@ -121,6 +121,7 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "1.02"
     added 1
   ]
   edge [
@@ -133,6 +134,7 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.06"
     added 1
   ]
   edge [
@@ -145,13 +147,14 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.12"
     added 1
   ]
   edge [
     source 2
     target 1
     weight 0.11496039245018146
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 0.17244058867527218
     deviation 1.0
@@ -163,20 +166,21 @@ graph [
   edge [
     source 2
     target 0
-    weight 0.9425707988502813
+    weight 0.9425707988502807
     color "gray"
     edgetype "local_response"
-    penwidth 1.4138561982754219
+    penwidth 1.413856198275421
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.94"
     added 0
   ]
   edge [
     source 3
     target 1
     weight 2.2421749232459414
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 3.363262384868912
     deviation 1.0
@@ -195,6 +199,7 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.66"
     added 1
   ]
   edge [
@@ -207,13 +212,14 @@ graph [
     deviation 0.0
     sign "negative"
     curved 1
+    edgelabel "-1.28"
     added 0
   ]
   edge [
     source 4
     target 3
     weight 0.616463356154612
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 0.924695034231918
     deviation 1.0
@@ -226,7 +232,7 @@ graph [
     source 5
     target 6
     weight 0.3269922324611523
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 0.4904883486917284
     deviation 1.0
@@ -238,20 +244,21 @@ graph [
   edge [
     source 5
     target 0
-    weight -0.08458228550695769
+    weight -0.08458228550695746
     color "gray"
     edgetype "local_response"
-    penwidth 0.12687342826043654
+    penwidth 0.12687342826043618
     deviation 0.0
     sign "negative"
     curved 1
+    edgelabel "-0.08"
     added 1
   ]
   edge [
     source 5
     target 2
     weight 0.48928692288052467
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 0.7339303843207869
     deviation 1.0
@@ -270,13 +277,14 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.03"
     added 1
   ]
   edge [
     source 7
     target 5
     weight 1.1182258947520962
-    color "green"
+    color "gray"
     edgetype "local_response"
     penwidth 1.6773388421281443
     deviation 1.0
@@ -295,13 +303,14 @@ graph [
     deviation 0.0
     sign "positive"
     curved 0
+    edgelabel "0.71"
     added 1
   ]
   edge [
     source 9
     target 1
     weight -7.85862373577403
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 10.0
     deviation 1.0
@@ -313,7 +322,7 @@ graph [
     source 10
     target 5
     weight -1.3302097863761275
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 1.9953146795641912
     deviation 1.0
@@ -325,7 +334,7 @@ graph [
     source 11
     target 1
     weight 0.0
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 0.0
     deviation 1.0
@@ -337,7 +346,7 @@ graph [
     source 12
     target 1
     weight -1.8439039414282725
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 2.765855912142409
     deviation 1.0
@@ -349,7 +358,7 @@ graph [
     source 13
     target 8
     weight -0.9841714613273725
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 1.4762571919910588
     deviation 1.0
@@ -361,7 +370,7 @@ graph [
     source 13
     target 1
     weight -4.190937152005511
-    color "red"
+    color "gray"
     edgetype "perturbation"
     penwidth 6.286405728008267
     deviation 1.0

@@ -585,7 +585,16 @@ mat <- loo_results %>%
   as.matrix() %>%
   cor(method = 'pearson')
 
+
+
 corrplot::corrplot(mat, method="number", type="upper", order="hclust")
+
+pdf(file = here("figures/correlations-and-predictions/models-correlation-matrix.pdf"))
+corrplot::corrplot(mat, method="number", type="upper", order="hclust")
+dev.off()
+
+
+
 ```
 
 
