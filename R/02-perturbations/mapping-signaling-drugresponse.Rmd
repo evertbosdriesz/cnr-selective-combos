@@ -31,6 +31,8 @@ library(rmarkdown)
 library(patchwork)
 
 source(here("R/graphics-settings.R"))
+
+inch2mm <- 25.4
 ```
 
 # Data preparation
@@ -95,11 +97,11 @@ ggplot(
     gather(dat_lfc, Epitope, LFC, -Cell, -Treatment, -Viability),
     Epitope != "Akt1"
   ),
-  aes(x = LFC, y = Viability, color = Cell)) +
+  aes(x = LFC, y = Viability)) +
   geom_vline(xintercept = 0, color = "gray", linetype="dotted") +
   geom_hline(yintercept = 1, color = "gray", linetype="dotted") +
   expand_limits(y = c(0, 1)) +
-  geom_point() +
+  geom_point(aes(color = Cell)) +
   scale_color_manual(
     name = "",
     breaks = c("WT", "PI3K"),
@@ -112,6 +114,7 @@ ggplot(
   ) +
   facet_wrap(~Epitope, scales = "free", labeller = as_labeller(epitope_labels)) +
   cowplot::theme_cowplot(font_family = "Helvetica") +
+  ggpubr::stat_cor(method = "pearson") +
   theme(legend.position = "bottom")
 ```
 
@@ -160,9 +163,10 @@ We remove the intercept because in the absence of any deviation in signaling act
 ```{r fit_lm_all}
 fit_lm_all <- 
   dat_lfc %>%
-    select(-Treatment, -Akt1, -Cell) %>% 
+    mutate(dat_lfc, Inhibition = 1 - Viability) %>% 
+    select(-Treatment, -Akt1, -Cell, -Viability) %>% 
   lm(
-  formula = 1 - Viability ~ 0 + ., 
+  formula = Inhibition ~ 0 + ., 
   data = .) 
 
 summary(fit_lm_all)
@@ -179,8 +183,8 @@ How well does a model only containing ERK1 and BioAkt fit the data?
 
 ```{r fit_lm_erkakt}
 fit_lm_erkakt <- lm(
-  formula = 1 - Viability ~  0 + BioAkt + ERK1, 
-  data = dat_lfc )
+  formula = Inhibition ~  0 + BioAkt + ERK1, 
+  data = mutate(dat_lfc, Inhibition = 1 - Viability))
 
 summary(fit_lm_erkakt)
 ```
@@ -188,31 +192,32 @@ summary(fit_lm_erkakt)
 Still very well, with an R-squared \~ 0.8
 
 The plot below shows that there is some structure in the residuals vs fitted values (see below), suggesting that the relation between log2-fold change and viability is not quite linear (which is not unexpected).
+(Note that we only consider the range where the fitted viability < 1, there are one or two outlier datapoints for which this is not the case).
 
 ```{r res fit_lm_all, message = FALSE}
 p_res_linfull <- 
   ggplot(
-    left_join(broom::augment(fit_lm_all), dat_lfc),
-    aes(x = .fitted, y = .std.resid)) +
+    filter(left_join(broom::augment(fit_lm_all), dat_lfc), .fitted < 1.),
+    aes(x = 1-.fitted, y = .resid)) +
     geom_point(aes(color = Cell)) +
     geom_smooth(span = 1) +
     scale_color_manual(name = "", values = color_lst, labels = label_lst) +
     cowplot::theme_cowplot(font_family = "Helvetica") +
     theme(legend.position = "bottom") + 
     labs(titles = "Linear model", subtitle = "All epitopes", 
-         x = "Fitted", y = "Residuals")
+         x = "Fitted viability", y = "Residuals")
 
 p_res_lin <-
   ggplot(
-    left_join(broom::augment(fit_lm_erkakt), dat_lfc),
-    aes(x = .fitted, y = .std.resid)) +
+    filter(left_join(broom::augment(fit_lm_erkakt), dat_lfc), .fitted < 1.),
+    aes(x = 1-.fitted, y = .resid)) +
     geom_point(aes(color = Cell)) +
     geom_smooth(span = 1) +
     scale_color_manual(name = "", values = color_lst, labels = label_lst) +
     cowplot::theme_cowplot(font_family = "Helvetica") +
     theme(legend.position = "bottom") + 
     labs(title = "Linear model", subtitle = "ERK and AKT only", 
-         x = "Fitted", y = "Residuals")
+         x = "Fitted viability", y = "Residuals")
 
 p_res_linfull + p_res_lin
 
@@ -340,6 +345,7 @@ p_res_mm <-
   "PI3K" = broom::augment(fit_mm_pi3k), "WT" = broom::augment(fit_mm_wt), 
   .id = "Cell"
   ) %>% 
+  filter(.fitted < 1) %>% 
   ggplot(aes(x = .fitted, y = .resid)) +
     geom_point(aes(color = Cell)) +
     geom_smooth(span = 1) +
@@ -347,10 +353,7 @@ p_res_mm <-
     cowplot::theme_cowplot(font_family = "Helvetica") +
     theme(legend.position = "bottom") + 
     labs(title = "Michaelis-Menten like", subtitle = subtitle_mm,
-         x = "Fitted", y = "Standardized Residuals")
-
-p_res_mm
-
+         x = "Fitted viability", y = "Residuals")
 
 ggsave(
   here("figures/correlations-and-predictions/residuals-fitted-mm.pdf"), 
@@ -359,7 +362,6 @@ ggsave(
     theme(legend.position = "bottom"),
   width = 2, height = 3)
 ```
-
 
 How does this compare to the linear models? 
 Let's do a leave one out cross validation to find out.
@@ -573,7 +575,7 @@ df_sigma %>%
 ```
 
 
-The results depend a bit on which metric is chosen, but overall the michaelis-menten like functions performs best and has the most straightforward, so we will continue with that.
+The results depend a bit on which metric is chosen, but overall the michaelis-menten like functions performs best and has the most straightforward interpretation, so we will continue with that.
 
 Of note, the (LOO) predictions of all non-linear functions are highly correlated.
 
@@ -621,7 +623,14 @@ $$\mathrm{viability} \sim \frac{1}{1 - \Delta ERK1/KM_{ERK1} - \Delta AKT/KM_{AK
 #   formula_mm, filter(dat_lfc, Cell == "PI3K"), 
 #   start = list("KM_ERK1" = 0.5, "KM_BioAkt" = 2.5)
 #   )
-# 
+
+tmp <- bind_rows(
+  "PI3K" = broom::augment(fit_mm_pi3k), "WT" = broom::augment(fit_mm_wt), 
+  .id = "Cell"
+  ) %>% 
+  #filter(.fitted < 1.) %>% 
+  select(Cell, Viability, .fitted, .resid)
+
 prediction_wt <- broom::augment(fit_mm_wt, filter(dat_lfc, Cell == "WT")) %>% 
   rename(PredictedViability = .fitted)
 
@@ -630,28 +639,60 @@ prediction_pi3k <- broom::augment(fit_mm_pi3k, filter(dat_lfc, Cell == "PI3K")) 
 
 
 prediction_combined <- bind_rows(prediction_wt, prediction_pi3k)
-
+tmp2 <- select(prediction_combined, Cell, Viability, .fitted = PredictedViability, .resid)
 
 ggplot(prediction_combined,
   aes(x = Viability, y = PredictedViability)) +
   geom_abline(slope = 1, color = "lightgray") +
   geom_point(aes(color = Cell)) +
+  #geom_smooth(method = "lm") +
   labs(
     title = "Correlation between measured and\nfitted viabilty",
     subtitle = subtitle_mm,
     x = "Measured viability", y = "Viability fitted from pERK and pAKT"
   ) +
-  #expand_limits(x = 0, y = 0) + 
+  expand_limits(x = 0, y = 0) + 
+  coord_flip() +
   ggpubr::stat_cor(method = "pearson") +
   scale_color_manual(name = "", values = color_lst, labels = label_lst) +
   cowplot::theme_cowplot(font_family = "Helvetica") +
   theme(legend.position = "bottom")
-# 
-# ggsave(here('figures', 'correlations-and-predictions', 'viability-signaling-MM-all.pdf'),
-#        width=2, height=2)
+
+ggsave(here('figures', 'correlations-and-predictions', 'viability-signaling-MM-all.pdf'),
+       width=2, height=2)
+```
+
+```{r}
+ggplot(prediction_combined,
+  aes(x = Viability, y = PredictedViability)) +
+  geom_abline(slope = 1, color = "lightgray") +
+  geom_point(aes(color = Cell), size=1, shape=0) +
+  labs(
+    # title = "Correlation between measured and\nfitted viabilty",
+    # subtitle = subtitle_mm,
+    x = "Measured viability (Relative to DMSO)", y = "Viability fitted from ERK and AKT"
+  ) +
+  scale_x_continuous(expand = c(0, 0), limits = c(0,1.15)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 1.15))+
+  # #xlim(c(0, 1.15)) + ylim(c(0, 1.5)) + 
+  # ggpubr::stat_cor(method = "pearson") +
+  scale_color_manual(name = "", values = color_lst, labels = label_lst) +
+  cowplot::theme_cowplot(font_family = "Helvetica", font_size = 8) +
+  coord_flip() +
+  theme(legend.position = "bottom")
+
+ggsave(here('figures', 'correlations-and-predictions', 'viability-signaling-MM-all.pdf'),
+        width=60/inch2mm, height = 60/inch2mm)
 ```
 
 
+```{r}
+tmp <- bind_rows(
+  "PI3K" = broom::augment(fit_mm_pi3k), "WT" = broom::augment(fit_mm_wt), 
+  .id = "Cell"
+  ) 
+
+```
 
 We obtain the following parameters from this.
 
