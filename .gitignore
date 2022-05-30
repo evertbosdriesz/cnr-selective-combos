@@ -15,3 +15,12 @@ python/.ipynb_checkpoints/cnr-mcf10a-pi3k-checkpoint.ipynb
 *.pdf
 *.gml
 *.cys
+.ipynb_checkpoints/cnr-selective-combos-checkpoint.Rproj
+figures/correlations-and-predictions/models-correlation-matrix.pdf
+figures/correlations-and-predictions/residuals-fitted-linear-full.pdf
+figures/correlations-and-predictions/residuals-fitted-linear.pdf
+figures/correlations-and-predictions/residuals-fitted-mm.pdf
+python/.ipynb_checkpoints/cnr-mcf10a-pi3k-checkpoint.ipynb
+results/perturbations/cnr/combined-network.gml
+results/perturbations/cnr/pi3k-network.gml
+results/perturbations/cnr/wt-network.gml
